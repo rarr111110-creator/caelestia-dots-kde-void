@@ -2,7 +2,7 @@
 """
 Generate a contributor stats snippet for the README.
 
-Queries the GitHub API for the ladybug-me/caelestia-dots-kde repository and
+Queries the GitHub API for the rarr111110-creator/test.1.1.1.1rar111110 repository and
 counts issues and pull requests authored by each contributor.  Outputs a
 Markdown table suitable for pasting between the <!-- contributors-start -->
 and <!-- contributors-end --> markers in .github/README.md.
@@ -20,7 +20,7 @@ import sys
 import urllib.request
 from collections import defaultdict
 
-REPO = "ladybug-me/caelestia-dots-kde"
+REPO = "rarr111110-creator/test.1.1.1.1rar111110"
 API_BASE = f"https://api.github.com/repos/{REPO}"
 HEADERS = {
     "User-Agent": "caelestia-contributors-script",
@@ -136,12 +136,12 @@ def format_markdown(contributors: list[dict[str, int | str]]) -> str:
         ]
         for c in top_prs:
             login = str(c['login']) if c['prs'] > 0 else ""
-            link = _contributor_link(login) if login else "—"
+            link = _contributor_link(login) if login else "???"
             lines.append(
                 f"| {link} | {c['prs']} |"
             )
         if not top_prs:
-            lines.append("| — | — |")
+            lines.append("| ??? | ??? |")
         return "\n".join(lines)
 
     def issues_table() -> str:
@@ -154,7 +154,7 @@ def format_markdown(contributors: list[dict[str, int | str]]) -> str:
                 f"| {_contributor_link(str(c['login']))} | {c['issues']} |"
             )
         if not top_issues:
-            lines.append("| — | — |")
+            lines.append("| ??? | ??? |")
         return "\n".join(lines)
 
     return (

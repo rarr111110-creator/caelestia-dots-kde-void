@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# 06-services.sh  Enable systemd user services and reload KWin.
+# 06-services.sh  Enable background services and reload KWin.
+#
+# systemd distros (Arch/Fedora/Debian) get systemd user units.
+# Void Linux (runit) gets XDG autostart entries instead — runit has no user
+# service manager of its own, and autostart is the native KDE mechanism.
 
 set -euo pipefail
 
@@ -8,10 +12,16 @@ echo ""
 echo "  Step 6/11  Services & KWin"
 echo ""
 
-if systemctl --user is-enabled --quiet qs-kwin-bridge.service 2>/dev/null || \
-   systemctl --user is-active --quiet qs-kwin-bridge.service 2>/dev/null; then
-    echo "  Disabling legacy qs-kwin-bridge service..."
-    systemctl --user disable --now qs-kwin-bridge.service 2>/dev/null || true
+has_systemd() {
+    command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]
+}
+
+if has_systemd; then
+    if systemctl --user is-enabled --quiet qs-kwin-bridge.service 2>/dev/null || \
+       systemctl --user is-active --quiet qs-kwin-bridge.service 2>/dev/null; then
+        echo "  Disabling legacy qs-kwin-bridge service..."
+        systemctl --user disable --now qs-kwin-bridge.service 2>/dev/null || true
+    fi
 fi
 
 echo "  Clearing legacy KWin workspace shortcuts to avoid QML conflicts..."
@@ -42,10 +52,25 @@ echo "  Applying system-level configurations (requires root)..."
 sudo bash -s -- "$USER" << 'EOF'
 TARGET_USER="$1"
 
-if systemctl is-enabled --quiet keyd.service 2>/dev/null || \
-   systemctl is-active --quiet keyd.service 2>/dev/null; then
-    echo "  Disabling legacy keyd service..."
-    systemctl disable --now keyd.service 2>/dev/null || true
+has_systemd() {
+    command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]
+}
+
+if has_systemd; then
+    if systemctl is-enabled --quiet keyd.service 2>/dev/null || \
+       systemctl is-active --quiet keyd.service 2>/dev/null; then
+        echo "  Disabling legacy keyd service..."
+        systemctl disable --now keyd.service 2>/dev/null || true
+    fi
+elif [[ -d /run/runit/service || -d /var/service ]]; then
+    # runit (Void): disabling a service means removing the symlink from the
+    # service directory (/var/service, or /run/runit/service on newer setups).
+    for _svdir in /var/service /run/runit/service; do
+        if [[ -L "$_svdir/keyd" ]]; then
+            echo "  Disabling legacy keyd runit service..."
+            rm -f "$_svdir/keyd" || true
+        fi
+    done
 fi
 
 echo "  Setting up ydotoold (OSK key injection daemon)..."
@@ -72,7 +97,21 @@ if [[ -e /dev/uinput ]]; then
         chgrp input /dev/uinput 2>/dev/null || true
     fi
 fi
+
+# Load the uinput module on boot (the udev rule only helps if the module is up).
+if [[ ! -e /dev/uinput ]]; then
+    modprobe uinput 2>/dev/null || true
+fi
+if ! grep -qs '^uinput$' /etc/modules-load.d/uinput.conf 2>/dev/null; then
+    mkdir -p /etc/modules-load.d
+    echo 'uinput' > /etc/modules-load.d/uinput.conf
+fi
 EOF
+
+if ! command -v ydotoold >/dev/null 2>&1; then
+    echo "  [WARN] ydotoold is not installed - skipping daemon setup."
+    echo "         On Void it is built from source by sdata/void-dist/installDP_void.sh."
+fi
 
 # Deploy ydotoold-wrapper script to ~/.local/bin
 mkdir -p "$HOME/.local/bin"
@@ -83,16 +122,21 @@ SOCKET="${YDOTOOL_SOCKET:-/run/user/$(id -u)/.ydotool_socket}"
 if [ -S "$SOCKET" ] && pidof ydotoold > /dev/null 2>&1; then
     exit 0
 fi
-exec /usr/bin/ydotoold \
+# Resolve the binary at runtime: package installs land in /usr/bin, source
+# builds (e.g. Void, where ydotool is not packaged) land in /usr/local/bin.
+YDOTOOLD_BIN="$(command -v ydotoold 2>/dev/null || echo /usr/bin/ydotoold)"
+exec "$YDOTOOLD_BIN" \
     --socket-path="$SOCKET" \
     --socket-perm=0660
 WRAPPER
 chmod +x "$HOME/.local/bin/ydotoold-wrapper"
 echo "  [OK]  ydotoold-wrapper deployed to ~/.local/bin."
 
-# Deploy and enable ydotoold systemd user service
-mkdir -p "$HOME/.config/systemd/user"
-cat > "$HOME/.config/systemd/user/ydotoold.service" << 'UNIT'
+if command -v ydotoold >/dev/null 2>&1; then
+    if has_systemd; then
+        # systemd distros: user unit
+        mkdir -p "$HOME/.config/systemd/user"
+        cat > "$HOME/.config/systemd/user/ydotoold.service" << 'UNIT'
 [Unit]
 Description=ydotoold key injection daemon
 After=graphical-session.target
@@ -107,10 +151,28 @@ Environment=YDOTOOL_SOCKET=/run/user/%U/.ydotool_socket
 [Install]
 WantedBy=graphical-session.target
 UNIT
-systemctl --user daemon-reload
-systemctl --user enable ydotoold.service 2>/dev/null || true
-systemctl --user start ydotoold.service 2>/dev/null || \
-    echo "  [INFO] ydotoold will start on next login."
-echo "  [OK]  ydotoold service configured."
+        systemctl --user daemon-reload
+        systemctl --user enable ydotoold.service 2>/dev/null || true
+        systemctl --user start ydotoold.service 2>/dev/null || \
+            echo "  [INFO] ydotoold will start on next login."
+        echo "  [OK]  ydotoold service configured (systemd)."
+    else
+        # runit (Void) and other non-systemd distros: XDG autostart entry.
+        mkdir -p "$HOME/.config/autostart"
+        cat > "$HOME/.config/autostart/ydotoold.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=ydotoold key injection daemon
+Comment=Starts ydotoold for on-screen keyboard key injection
+Exec=$HOME/.local/bin/ydotoold-wrapper
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
+EOF
+        echo "  [OK]  ydotoold daemon configured (autostart entry)."
+        # Start it now for the current session, if possible.
+        nohup "$HOME/.local/bin/ydotoold-wrapper" >/dev/null 2>&1 & disown || true
+    fi
+fi
 
 echo "[OK]  Services configured."

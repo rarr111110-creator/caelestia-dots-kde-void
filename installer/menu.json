@@ -121,7 +121,7 @@
         {
           "id": "SKIP_SYSTEM_UPDATE",
           "type": "boolean",
-          "title": "Skip the full system update (pacman -Syu / dnf upgrade / apt upgrade)",
+          "title": "Skip the full system update (pacman -Syu / dnf upgrade / apt upgrade / xbps-install -u)",
           "default": false
         },
         {

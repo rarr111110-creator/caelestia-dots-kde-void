@@ -106,18 +106,16 @@ elif command -v kbuildsycoca5 >/dev/null 2>&1; then
 fi
 echo "  [OK]  Quickshell Wayland interface declaration created."
 
-#  kde-material-you-colors systemd service 
-# Creates and enables a systemd user service for kde-material-you-colors.
-echo "  Deploying systemd service for KDE Material You Colors..."
+#  kde-material-you-colors background service
+# Creates and enables a systemd user service for kde-material-you-colors on
+# systemd distros; on runit distros (Void) an XDG autostart entry is used
+# instead — runit has no user-service facility and KDE autostart is native.
+echo "  Deploying background service for KDE Material You Colors..."
 
 if [[ "${APPLY_MATERIAL_YOU:-true}" == "true" ]]; then
-    # Clean up old desktop autostart entry if it exists
-    rm -f "$AUTOSTART_DIR/kde-material-you-colors.desktop" 2>/dev/null || true
-
     # Clean up old Material You color schemes to prevent them from multiplying
     rm -f "$HOME/.local/share/color-schemes/MaterialYou"*.colors 2>/dev/null || true
 
-    mkdir -p "$HOME/.config/systemd/user"
     # Determine the path of kde-material-you-colors
     if command -v kde-material-you-colors >/dev/null 2>&1; then
         KMYC_PATH=$(command -v kde-material-you-colors)
@@ -129,7 +127,11 @@ if [[ "${APPLY_MATERIAL_YOU:-true}" == "true" ]]; then
         KMYC_PATH="$HOME/.local/bin/kde-material-you-colors"
     fi
 
-    cat > "$HOME/.config/systemd/user/kde-material-you-colors.service" << EOF
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+        # systemd distros (Arch/Fedora/Debian)
+        rm -f "$AUTOSTART_DIR/kde-material-you-colors.desktop" 2>/dev/null || true
+        mkdir -p "$HOME/.config/systemd/user"
+        cat > "$HOME/.config/systemd/user/kde-material-you-colors.service" << EOF
 [Unit]
 Description=KDE Material You Colors
 PartOf=graphical-session.target
@@ -145,11 +147,26 @@ RestartSec=3
 WantedBy=graphical-session.target
 EOF
 
-    systemctl --user daemon-reload
-    systemctl --user enable --now kde-material-you-colors.service 2>/dev/null || true
-    echo "  [OK]  kde-material-you-colors systemd service enabled."
+        systemctl --user daemon-reload
+        systemctl --user enable --now kde-material-you-colors.service 2>/dev/null || true
+        echo "  [OK]  kde-material-you-colors systemd service enabled."
+    else
+        # runit distros (Void): autostart entry
+        rm -f "$HOME/.config/systemd/user/kde-material-you-colors.service" 2>/dev/null || true
+        cat > "$AUTOSTART_DIR/kde-material-you-colors.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=KDE Material You Colors
+Comment=Wallpaper-adaptive KDE color schemes
+Exec=$KMYC_PATH
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
+EOF
+        echo "  [OK]  kde-material-you-colors autostart entry created (runit)."
+    fi
 else
-    echo "  [SKIP] Skipping kde-material-you-colors systemd service."
+    echo "  [SKIP] Skipping kde-material-you-colors background service."
 fi
 
 # Live window thumbnails.

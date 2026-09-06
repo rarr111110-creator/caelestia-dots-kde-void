@@ -92,6 +92,9 @@ if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "themes" ]]; then
     fi
 fi
 
+# NOTE: this release asset lives in the upstream KDE-port repo. It is only a
+# pacman binary repo (libcava/darkly built for Arch) — irrelevant for
+# Fedora/Debian/Void, which build from source instead.
 BIN_REPO_NAME="caelestia-bin"
 BIN_REPO_URL="https://github.com/ladybug-me/caelestia-dots-kde/releases/download/caelestia-bin-repo"
 

@@ -113,6 +113,10 @@ if [[ "${CAELESTIA_SETUP_RUNNING:-0}" == "0" ]]; then
     elif command -v apt-get >/dev/null; then
         info "Installing via apt..."
         sudo apt-get update && sudo apt-get install -y qt6-wayland qt6-wayland-dev libkf6globalaccel-dev libkf6windowsystem-dev qt6-base-private-dev libkf6kpipewire-dev || warn "apt install failed..."
+    elif command -v xbps-install >/dev/null; then
+        info "Installing via xbps..."
+        # Void package names: kf6-* for KF6 frameworks, kglobalacceld for the daemon
+        sudo xbps-install -y qt6-wayland qt6-wayland-devel qt6-base-private-devel kpipewire kpipewire-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel kglobalacceld || warn "xbps install failed..."
     fi
     
     if [[ "${CAELESTIA_SKIP_DEPLOY:-0}" == "0" ]]; then

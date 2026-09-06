@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Caelestia
 import Caelestia.Config
+import qs.utils
 
 Singleton {
     id: root
@@ -362,7 +363,9 @@ Singleton {
             onStreamFinished: {
                 if (text.trim().length > 0) {
                     if (text.includes("doesn't appear to be running") || text.includes("failed to connect to local tailscaled") || text.includes("daemon is not running") || text.includes("not running") && (text.includes("netbird") || text.includes("warp"))) {
-                        let cmd = "sudo systemctl start ";
+                        // Init-system-agnostic hint: systemd units on Arch/Fedora/Debian,
+                        // runit services (`sv`) on Void Linux.
+                        let cmd = (SysInfo.osId === "void") ? "sudo sv start /var/service/" : "sudo systemctl start ";
                         switch (root.providerName) {
                         case "tailscale":
                             cmd += "tailscaled";

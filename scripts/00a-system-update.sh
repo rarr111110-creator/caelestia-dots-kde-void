@@ -26,6 +26,13 @@ elif [[ "${BASE_DISTRO:-unknown}" == "debian" ]]; then
     else
         sudo apt-get update && sudo apt-get upgrade
     fi
+elif [[ "${BASE_DISTRO:-unknown}" == "void" ]]; then
+    # Void: sync repodata first, then upgrade installed packages.
+    if [[ -n "${CONFIRM_ARG:-}" ]]; then
+        sudo xbps-install -Sy && sudo xbps-install -uy
+    else
+        sudo xbps-install -S && sudo xbps-install -u
+    fi
 else
     echo "[WARN] Distro not set properly, skipping system update."
 fi

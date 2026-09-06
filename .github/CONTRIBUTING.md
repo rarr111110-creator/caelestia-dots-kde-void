@@ -5,7 +5,7 @@ We're glad you're here! This guide covers everything you need to start contribut
 ## Quick start
 
 ```bash
-git clone https://github.com/ladybug-me/caelestia-dots-kde ~/caelestia-dots-kde
+git clone https://github.com/rarr111110-creator/test.1.1.1.1rar111110 ~/caelestia-dots-kde
 cd ~/caelestia-dots-kde
 bash scripts/setup.sh  # Full install - do this at least once
 ```
@@ -97,4 +97,4 @@ cmake -B build && cmake --build build   # Compile
 
 ## Stuck?
 
-Open a [Discussion](https://github.com/ladybug-me/caelestia-dots-kde/discussions) or ask in an issue - we're happy to help.
+Open a [Discussion](https://github.com/rarr111110-creator/test.1.1.1.1rar111110/discussions) or ask in an issue - we're happy to help.

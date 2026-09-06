@@ -71,13 +71,28 @@ print(60)
 }
 
 _ensure_portals() {
-    # Restart the portal stack if either component isn't running â€” pipewire
+    # Restart the portal stack if either component isn't running — pipewire
     # screen capture requires both xdg-desktop-portal and the KDE backend.
-    if ! systemctl --user is-active --quiet plasma-xdg-desktop-portal-kde 2>/dev/null || \
-       ! systemctl --user is-active --quiet xdg-desktop-portal 2>/dev/null; then
-        systemctl --user restart plasma-xdg-desktop-portal-kde 2>/dev/null || true
-        systemctl --user restart xdg-desktop-portal 2>/dev/null || true
-        sleep 1
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+        # systemd distros (Arch/Fedora/Debian)
+        if ! systemctl --user is-active --quiet plasma-xdg-desktop-portal-kde 2>/dev/null || \
+           ! systemctl --user is-active --quiet xdg-desktop-portal 2>/dev/null; then
+            systemctl --user restart plasma-xdg-desktop-portal-kde 2>/dev/null || true
+            systemctl --user restart xdg-desktop-portal 2>/dev/null || true
+            sleep 1
+        fi
+    else
+        # Non-systemd distros (Void/runit): portals are dbus-activated. If one
+        # isn't running (or hung), kill the stale process and let D-Bus
+        # activation spawn a fresh one on the next capture request.
+        # NOTE: match with -f + ERE, not -x: the process comm is truncated to
+        # 15 chars ("xdg-desktop-por"), so -x never matches the full name.
+        if ! pgrep -u "$(id -u)" -f 'plasma-xdg-desktop-portal-kde' >/dev/null 2>&1 || \
+           ! pgrep -u "$(id -u)" -f 'xdg-desktop-portal( |$)' >/dev/null 2>&1; then
+            pkill -u "$(id -u)" -f 'plasma-xdg-desktop-portal-kde' 2>/dev/null || true
+            pkill -u "$(id -u)" -f 'xdg-desktop-portal( |$)' 2>/dev/null || true
+            sleep 1
+        fi
     fi
 }
 

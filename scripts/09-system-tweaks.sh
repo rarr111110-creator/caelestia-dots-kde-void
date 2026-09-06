@@ -93,7 +93,17 @@ tweak_five_desktops() {
 tweak_reload_kde() {
     info "Reloading KWin and plasma-kglobalaccel..."
     qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || true
-    systemctl --user restart plasma-kglobalaccel.service 2>/dev/null || true
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+        systemctl --user restart plasma-kglobalaccel.service 2>/dev/null || true
+    else
+        # Non-systemd (e.g. Void/runit): kglobalacceld is dbus-activated, so a
+        # plain restart of the process picks up the new config on demand.
+        if command -v kquitapp6 >/dev/null 2>&1; then
+            kquitapp6 kglobalacceld 2>/dev/null || true
+        elif command -v pkill >/dev/null 2>&1; then
+            pkill -x kglobalacceld 2>/dev/null || true
+        fi
+    fi
     ok "KDE daemons reloaded."
 }
 

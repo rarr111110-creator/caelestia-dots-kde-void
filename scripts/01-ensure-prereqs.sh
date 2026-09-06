@@ -81,4 +81,20 @@ elif [[ "$BASE_DISTRO" == "debian" ]]; then
         sudo apt-get install -y yq jq build-essential git curl
         echo "[OK]  Prerequisites installed."
     fi
+elif [[ "$BASE_DISTRO" == "void" ]]; then
+    echo "==> Checking for Void prerequisites (xbps, yq, jq, base-devel)..."
+
+    if ! command -v xbps-install >/dev/null 2>&1; then
+        echo -e "\033[0;31m[ERR] xbps-install not found. This installer requires Void Linux.\033[0m"
+        exit 1
+    fi
+
+    if command -v yq >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && command -v g++ >/dev/null 2>&1; then
+        echo "[OK]  Prerequisites are already installed."
+    else
+        echo "==> Missing prerequisites  installing..."
+        sudo xbps-install -S
+        sudo xbps-install -y yq jq base-devel git curl
+        echo "[OK]  Prerequisites installed."
+    fi
 fi

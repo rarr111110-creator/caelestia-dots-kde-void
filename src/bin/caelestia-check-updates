@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 export PATH="$HOME/.local/bin:$PATH"
 
-# This script is meant to be run periodically by a systemd timer.
-# It checks for updates and sends a notification using notify-send.
+# This script checks for updates and sends a notification using notify-send.
+# On systemd distros it can be driven by a user timer
+# (src/systemd/caelestia-update-checker.timer); on Void/runit you can call it
+# from a cron entry or any other scheduler — it has no systemd dependency.
 
 # Pre-flight dependency check for silent failure
 if ! command -v git &> /dev/null; then
@@ -29,7 +31,7 @@ fi
 export GIT_TERMINAL_PROMPT=0
 GIT_TIMEOUT=30
 
-if ! timeout ${GIT_TIMEOUT} git ls-remote --exit-code --heads https://github.com/ladybug-me/caelestia-dots-kde.git "$BRANCH" >/dev/null 2>&1; then
+if ! timeout ${GIT_TIMEOUT} git ls-remote --exit-code --heads https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git "$BRANCH" >/dev/null 2>&1; then
     BRANCH="main"
     mkdir -p "$HOME/.config/quickshell/caelestia"
     echo "$BRANCH" > "$HOME/.config/quickshell/caelestia/.update_branch"
@@ -40,7 +42,7 @@ CAELESTIA_PENDING=0
 
 if [ -n "$_localCommit" ]; then
     if [ ! -d "$REPO" ]; then
-        timeout ${GIT_TIMEOUT} git clone --bare --filter=blob:none https://github.com/ladybug-me/caelestia-dots-kde.git "$REPO" >/dev/null 2>&1 || true
+        timeout ${GIT_TIMEOUT} git clone --bare --filter=blob:none https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git "$REPO" >/dev/null 2>&1 || true
     else
         timeout ${GIT_TIMEOUT} git -C "$REPO" fetch --force origin "$BRANCH:$BRANCH" >/dev/null 2>&1 || true
     fi
@@ -75,6 +77,12 @@ fi
 if command -v apt-get >/dev/null; then
     APT_PENDING=$(apt-get -s upgrade 2>/dev/null | grep -i "^Inst" | wc -l)
     SYSTEM_PENDING=$((SYSTEM_PENDING + APT_PENDING))
+fi
+
+if command -v xbps-install >/dev/null; then
+    # -Mun: in-memory sync, upgrade, dry-run. Lists packages with updates available.
+    XBPS_PENDING=$(xbps-install -Mun 2>/dev/null | grep -c '^[^ ]' 2>/dev/null || true)
+    SYSTEM_PENDING=$((SYSTEM_PENDING + ${XBPS_PENDING:-0}))
 fi
 
 # 3. Notification Anti-Spam & Cachy-Update Logic

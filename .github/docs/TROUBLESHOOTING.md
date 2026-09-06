@@ -30,7 +30,7 @@ The installer compiles the `caelestia-install` TUI binary during `setup.sh`. The
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| `g++: command not found` | Build tools not installed | Arch: `sudo pacman -S base-devel` — Fedora: `sudo dnf install gcc-c++` |
+| `g++: command not found` | Build tools not installed | Arch: `sudo pacman -S base-devel` — Fedora: `sudo dnf install gcc-c++` — Debian: `sudo apt-get install build-essential` — Void: `sudo xbps-install -S base-devel` |
 | `cmake: command not found` | CMake missing | Auto-installer handles this if `BASE_DISTRO` is detected; otherwise install manually |
 | `[FATAL] Failed to build the Caelestia installer` | General CMake/make error | Read build log: `cat /tmp/caelestia_build.log` |
 | Compiler error about modern C++ features | GCC older than 10 | Ensure GCC 10+ is installed: `g++ --version` |
@@ -106,6 +106,16 @@ The project enables ccache in both `installer/CMakeLists.txt` and `shell/CMakeLi
 | `caelestia-cli` | `caelestia` command not found; shell falls back to direct `quickshell` calls |
 | `kde-material-you-colors` | Colors won't sync with wallpaper |
 | `darkly` | KDE theme won't apply |
+
+### 2.1a Void Linux / XBPS Notes
+
+| Issue | Cause / Fix |
+|---|---|
+| `sudo xbps-install -y <pkg>` fails with "Unable to locate" | Package name doesn't exist in Void or the index is stale — run `sudo xbps-install -S` first. The installer retries every package individually and logs failures to `~/.cache/caelestia-kde/failed_packages.txt`. |
+| `Failed to mount /` during `xbps-install` inside a container/chroot | Harmless procfs warning in containers; installs still succeed. |
+| `quickshell` features missing at runtime | Void ships a stable (non-git) quickshell. If the shell reports missing QML features, build quickshell from source and ensure `~/.local/bin` precedes `/usr/bin` in `PATH`. |
+| Source builds (`ydotool`, `libcava`, `darkly`) fail | Ensure `base-devel` is installed; Void needs no `makepkg`. Build errors are logged to stderr during `02-all-packages.sh`. |
+| Fonts missing icons | The Nerd Fonts are downloaded directly to `~/.local/share/fonts` on Void (same as the Debian path); re-run `scripts/02-all-packages.sh` and check for download failures. |
 
 ### 2.2 Fedora / COPR Failures
 
@@ -214,15 +224,20 @@ avoids Caelestia's use of the protocol entirely.
 
 | Symptom | Fix |
 |---|---|
-| Colors not updating with wallpaper | Check service: `systemctl status --user kde-material-you-colors.service` |
-| Service failed to start | On Fedora, installed via `uv`. If `uv` isn't in PATH at login, the service fails. |
+| Colors not updating with wallpaper | systemd distros: `systemctl status --user kde-material-you-colors.service`. Void/runit: `pgrep -af kde-material-you-colors` |
+| Service failed to start | On Fedora/Void, installed via `uv`. If `uv` isn't in PATH at login, the service fails. |
 | Old schemes accumulating | The installer removes old `MaterialYou*.colors`, but multiple restarts can recreate them. |
 
-**Manual restart:**
+**Manual restart (systemd distros):**
 ```bash
 systemctl --user restart kde-material-you-colors.service
 journalctl --user -u kde-material-you-colors.service -n 50
 ```
+
+**On Void (runit):** `kde-material-you-colors` runs as an XDG autostart entry
+(`~/.config/autostart/kde-material-you-colors.desktop`). Restart it by killing
+the process and logging back in, or run it again manually in the background:
+`kde-material-you-colors &`.
 
 ### 3.5 Screen Recording Issues
 
@@ -425,12 +440,37 @@ The TUI uses advanced terminal escape sequences:
 
 ## 8. KDE & Plasma Specific Issues
 
+### 8.0 Void Linux (runit) — service model differences
+
+On Void there is no systemd. Everything this project would register as a
+`systemd --user` unit is instead managed as an **XDG autostart entry**:
+
+| Component | systemd (other distros) | Void (runit) |
+|---|---|---|
+| Clipboard history | `cliphist.service` | `~/.config/autostart/cliphist.desktop` |
+| OSK key injection | `ydotoold.service` | `~/.config/autostart/ydotoold.desktop` |
+| Material You colors | `kde-material-you-colors.service` | `~/.config/autostart/kde-material-you-colors.desktop` |
+| Ollama (optional) | `ollama.service` (system) | runit service `/etc/sv/ollama` |
+
+Notes:
+
+- System services are managed with `sv`: `sudo sv status /var/service/NetworkManager`, etc.
+- Session/power actions (suspend, poweroff) go through **elogind** over D-Bus,
+  no systemd required.
+- `uinput` is loaded at boot via `/etc/modules-load.d/uinput.conf` (Void reads
+  this directory natively).
+- Packages that don't exist in the Void repos (`ydotool`, `libcava`,
+  `app2unit`, `darkly`, `caelestia-cli`) are built from source by
+  `sdata/void-dist/installDP_void.sh`; check
+  `~/.cache/caelestia-kde/failed_packages.txt` after install.
+
 ### 8.1 Legacy qs-kwin-bridge Service
 
 The old `qs-kwin-bridge` Python daemon is now **disabled** in favor of native C++ plugins. If you see it running:
 ```bash
 systemctl --user disable --now qs-kwin-bridge.service
 ```
+(On Void there is no systemd unit; if a stale `qs-kwin-bridge` process exists, just `pkill -f qs-kwin-bridge`.)
 
 ### 8.2 xdg-desktop-portal-kde
 

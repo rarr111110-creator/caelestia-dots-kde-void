@@ -54,8 +54,12 @@ void setup_sudo_environment(const string& pw) {
     // Also export SUDO_PASS for some scripts (like 09-system-tweaks.sh) that might rely on it
     setenv("SUDO_PASS", pw.c_str(), 1);
 
-    // Start background keep-awake for display (sleep inhibitor)
-    system("systemd-inhibit --what=idle:sleep --who=\"Caelestia Installer\" --why=\"Installation in progress\" bash -c 'while :; do sleep 600; done' >/dev/null 2>&1 & echo $! > /tmp/caelestia_inhibit.pid");
+    // Start background keep-awake for display (sleep inhibitor).
+    // systemd-inhibit only exists on systemd distros; on runit distros (Void)
+    // the KDE screensaver DBus inhibit below is the fallback.
+    if (system("command -v systemd-inhibit >/dev/null 2>&1") == 0) {
+        system("systemd-inhibit --what=idle:sleep --who=\"Caelestia Installer\" --why=\"Installation in progress\" bash -c 'while :; do sleep 600; done' >/dev/null 2>&1 & echo $! > /tmp/caelestia_inhibit.pid");
+    }
     system("qdbus6 org.freedesktop.ScreenSaver /ScreenSaver org.freedesktop.ScreenSaver.Inhibit \"Caelestia Installer\" \"Installation in progress\" > /tmp/caelestia_kde_inhibit.cookie 2>/dev/null");
 }
 
@@ -285,7 +289,7 @@ while (!g_quit) {
     }
 
     string distro_select() {
-        vector<string> options = {"Arch-based", "Fedora", "Debian-based", "Exit"};
+        vector<string> options = {"Arch-based", "Fedora", "Debian-based", "Void Linux", "Exit"};
         int selected = 0;
         int box_width = 63;
         int box_height = 13;
@@ -326,6 +330,7 @@ while (!g_quit) {
                 if (options[selected] == "Arch-based") return "arch";
                 if (options[selected] == "Fedora") return "fedora";
                 if (options[selected] == "Debian-based") return "debian";
+                if (options[selected] == "Void Linux") return "void";
                 return "exit";
             }
         }
@@ -415,6 +420,8 @@ while (!g_quit) {
                 Draw::text(left + 2, y++, fit_line("[OK] System updated (dnf upgrade)", content_width), Draw::color("green"));
             } else if (g_base_distro == "debian") {
                 Draw::text(left + 2, y++, fit_line("[OK] System updated (apt-get upgrade)", content_width), Draw::color("green"));
+            } else if (g_base_distro == "void") {
+                Draw::text(left + 2, y++, fit_line("[OK] System updated (xbps-install -S && -u)", content_width), Draw::color("green"));
             } else {
                 Draw::text(left + 2, y++, fit_line("[OK] System updated", content_width), Draw::color("green"));
             }

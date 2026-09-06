@@ -42,10 +42,12 @@ if [ -f /etc/os-release ]; then
         arch|cachyos|endeavouros|manjaro|artix) BASE_DISTRO="arch" ;;
         fedora|nobara|bazzite|rhel|centos|almalinux|rocky) BASE_DISTRO="fedora" ;;
         debian|ubuntu|pop|mint|kali|raspbian|elementary|zorin|deepin|devuan) BASE_DISTRO="debian" ;;
+        void) BASE_DISTRO="void" ;;
         *)
             if echo "${ID_LIKE:-}" | grep -iq "arch"; then BASE_DISTRO="arch"
             elif echo "${ID_LIKE:-}" | grep -iq "fedora"; then BASE_DISTRO="fedora"
             elif echo "${ID_LIKE:-}" | grep -iq -E "debian|ubuntu"; then BASE_DISTRO="debian"
+            elif echo "${ID_LIKE:-}" | grep -iq "void"; then BASE_DISTRO="void"
             else BASE_DISTRO="unknown"; fi
             ;;
     esac
@@ -55,12 +57,13 @@ fi
 
 if [[ "$BASE_DISTRO" == "unknown" ]]; then
     echo -e "${YELLOW}Could not detect distribution. Select base:${RST}"
-    echo "  1) Arch-based   2) Fedora-based   3) Debian-based   4) Exit"
-    read -r -p "Choice [1-4]: " _dc
+    echo "  1) Arch-based   2) Fedora-based   3) Debian-based   4) Void   5) Exit"
+    read -r -p "Choice [1-5]: " _dc
     case "$_dc" in
         1) BASE_DISTRO="arch" ;;
         2) BASE_DISTRO="fedora" ;;
         3) BASE_DISTRO="debian" ;;
+        4) BASE_DISTRO="void" ;;
         *) die "Exiting." ;;
     esac
 fi
@@ -219,30 +222,41 @@ restore_or_remove() {
 
 section "Step 1 - Stop and Disable Services"
 
-for svc in qs-kwin-bridge cliphist ydotoold kde-material-you-colors; do
-    if systemctl --user is-enabled --quiet "${svc}.service" 2>/dev/null ||
-       systemctl --user is-active  --quiet "${svc}.service" 2>/dev/null; then
-        systemctl --user disable --now "${svc}.service" 2>/dev/null || true
-        ok "Disabled user service: $svc"
-    else
-        skip "User service not active: $svc"
+if command -v systemctl >/dev/null 2>&1; then
+    for svc in qs-kwin-bridge cliphist ydotoold kde-material-you-colors; do
+        if systemctl --user is-enabled --quiet "${svc}.service" 2>/dev/null ||
+           systemctl --user is-active  --quiet "${svc}.service" 2>/dev/null; then
+            systemctl --user disable --now "${svc}.service" 2>/dev/null || true
+            ok "Disabled user service: $svc"
+        else
+            skip "User service not active: $svc"
+        fi
+    done
+
+    if systemctl --user is-enabled --quiet "caelestia-update-checker.timer" 2>/dev/null ||
+       systemctl --user is-active  --quiet "caelestia-update-checker.timer" 2>/dev/null; then
+        systemctl --user disable --now "caelestia-update-checker.timer" 2>/dev/null || true
+        systemctl --user disable --now "caelestia-update-checker.service" 2>/dev/null || true
+        ok "Disabled user timer: caelestia-update-checker"
     fi
-done
 
-if systemctl --user is-enabled --quiet "caelestia-update-checker.timer" 2>/dev/null ||
-   systemctl --user is-active  --quiet "caelestia-update-checker.timer" 2>/dev/null; then
-    systemctl --user disable --now "caelestia-update-checker.timer" 2>/dev/null || true
-    systemctl --user disable --now "caelestia-update-checker.service" 2>/dev/null || true
-    ok "Disabled user timer: caelestia-update-checker"
-fi
-
-# Stop and disable keyd (system service)
-if systemctl is-enabled --quiet keyd 2>/dev/null ||
-   systemctl is-active  --quiet keyd 2>/dev/null; then
-    sudo systemctl disable --now keyd 2>/dev/null || true
-    ok "Disabled system service: keyd"
+    # Stop and disable keyd (system service)
+    if systemctl is-enabled --quiet keyd 2>/dev/null ||
+       systemctl is-active  --quiet keyd 2>/dev/null; then
+        sudo systemctl disable --now keyd 2>/dev/null || true
+        ok "Disabled system service: keyd"
+    else
+        skip "keyd not active"
+    fi
 else
-    skip "keyd not active"
+    # Void Linux uses runit instead of systemd
+    info "systemd not found (runit-based system) - skipping systemd service cleanup."
+    for svc in keyd; do
+        if [[ -L "/var/service/$svc" ]]; then
+            sudo rm -f "/var/service/$svc"
+            ok "Disabled runit service: $svc"
+        fi
+    done
 fi
 
 # Kill any running Caelestia / Quickshell processes
@@ -268,13 +282,36 @@ do
     fi
 done
 
-# Autostart desktop entry
-if [[ -f "$HOME/.config/autostart/caelestiashell.desktop" ]]; then
-    rm -f "$HOME/.config/autostart/caelestiashell.desktop"
-    ok "Removed autostart entry: caelestiashell.desktop"
+# Autostart desktop entries (Caelestia shell autostart on all distros, plus
+# the non-systemd background-service autostart entries used on Void/runit)
+for _desktop in caelestiashell cliphist ydotoold kde-material-you-colors; do
+    if [[ -f "$HOME/.config/autostart/${_desktop}.desktop" ]]; then
+        rm -f "$HOME/.config/autostart/${_desktop}.desktop"
+        ok "Removed autostart entry: ${_desktop}.desktop"
+    fi
+done
+
+# Leftover helper scripts used by the non-systemd autostart entries
+rm -f "$HOME/.local/bin/cliphist-watch.sh" 2>/dev/null || true
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user daemon-reload 2>/dev/null || true
 fi
 
-systemctl --user daemon-reload 2>/dev/null || true
+# Remove runit user services if present (Void Linux)
+for rsvc in ydotoold cliphist kde-material-you-colors; do
+    if [[ -d "$HOME/.local/share/sv/$rsvc" ]]; then
+        rm -rf "$HOME/.local/share/sv/$rsvc"
+        ok "Removed runit user service: $rsvc"
+    fi
+done
+
+# Remove the ollama runit service if we registered it (Void Linux)
+if [[ -L /var/service/ollama || -d /etc/sv/ollama ]]; then
+    sudo rm -f /var/service/ollama
+    sudo rm -rf /etc/sv/ollama
+    ok "Removed ollama runit service"
+fi
 
 section "Step 3 - Remove Shell Installation"
 
@@ -572,6 +609,21 @@ if [[ -f /etc/udev/rules.d/80-uinput.rules ]]; then
     ok "Removed udev rule: 80-uinput.rules"
 fi
 
+# uinput module autoload entry written by the installer
+if [[ -f /etc/modules-load.d/uinput.conf ]] && grep -qx 'uinput' /etc/modules-load.d/uinput.conf 2>/dev/null; then
+    sudo rm -f /etc/modules-load.d/uinput.conf
+    ok "Removed modules-load entry: uinput.conf"
+fi
+
+# Source-built ydotool binaries (Void has no ydotool package; the installer
+# compiles them from source into /usr/local)
+for _bin in /usr/local/bin/ydotool /usr/local/bin/ydotoold; do
+    if [[ -f "$_bin" ]]; then
+        sudo rm -f "$_bin"
+        ok "Removed: $_bin"
+    fi
+done
+
 # sudoers file for ydotoold
 if [[ -f /etc/sudoers.d/ydotoold-nopasswd ]]; then
     sudo rm -f /etc/sudoers.d/ydotoold-nopasswd
@@ -660,6 +712,26 @@ if [[ "$REMOVE_PACKAGES" == "true" ]]; then
         libxi-dev libdrm-dev libx11-dev libxcomposite-dev libxdamage-dev libxrender-dev libxrandr-dev libpulse-dev libva-dev libcap-dev libavfilter-dev libvulkan-dev
     )
 
+    VOID_PACKAGES=(
+        cmake ninja ccache
+        wl-clipboard cliphist wl-clip-persist inotify-tools wireplumber trash-cli jq yq
+        aubio-devel lm_sensors libsensors-devel
+        pipewire pipewire-devel
+        qt6-base-devel qt6-base-private-devel qt6-declarative-devel qt6-wayland qt6-wayland-devel qt6-svg-devel qt6-shadertools-devel qt6-tools qt6-multimedia
+        kpipewire-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel kf6-networkmanager-qt-devel libsecret-devel
+        kf6-kguiaddons-devel kf6-kconfig-devel libX11-devel
+        extra-cmake-modules kf6-kcoreaddons-devel kwin-devel
+        kglobalacceld kde-cli-tools
+        ffmpeg ffmpeg-devel libqalculate-devel qalculate Vulkan-Headers
+        foot fish-shell eza fastfetch starship btop
+        papirus-icon-theme noto-fonts-ttf noto-fonts-cjk noto-fonts-emoji
+        fuzzel swappy ddcutil NetworkManager ImageMagick
+        tesseract-ocr tesseract-ocr-eng spectacle slurp grim xdg-utils sassc
+        bat ripgrep lazygit xdg-user-dirs uv
+        dbus-devel dbus-glib-devel python3-devel python3-pip
+        kvantum quickshell gpu-screen-recorder
+    )
+
     if [[ "$BASE_DISTRO" == "arch" ]]; then
         warn "The following packages will be removed:"
         printf '  %s\n' "${ARCH_PACKAGES[@]}"
@@ -697,6 +769,18 @@ if [[ "$REMOVE_PACKAGES" == "true" ]]; then
             sudo apt-get remove -y "${DEBIAN_PACKAGES[@]}" 2>/dev/null || \
                 warn "Some packages could not be removed. Check manually."
             ok "Debian packages removed"
+        else
+            skip "Package removal skipped"
+        fi
+    elif [[ "$BASE_DISTRO" == "void" ]]; then
+        warn "The following packages will be removed:"
+        printf '  %s\n' "${VOID_PACKAGES[@]}"
+        echo
+        read -r -p "Proceed? [y/N]: " _pkg_confirm
+        if [[ "${_pkg_confirm,,}" == "y" || "${_pkg_confirm,,}" == "yes" ]]; then
+            sudo xbps-remove -Ry "${VOID_PACKAGES[@]}" 2>/dev/null || \
+                warn "Some packages could not be removed. Check manually."
+            ok "Void packages removed"
         else
             skip "Package removal skipped"
         fi
@@ -753,7 +837,16 @@ fi
 section "Step 11 - Reload KDE"
 
 qdbus6 org.kde.KWin /KWin reconfigure                    2>/dev/null || true
-systemctl --user restart plasma-kglobalaccel.service      2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    systemctl --user restart plasma-kglobalaccel.service  2>/dev/null || true
+else
+    # Non-systemd (Void/runit): kglobalacceld is dbus-activated.
+    if command -v kquitapp6 >/dev/null 2>&1; then
+        kquitapp6 kglobalacceld 2>/dev/null || true
+    else
+        pkill -x kglobalacceld 2>/dev/null || true
+    fi
+fi
 kbuildsycoca6 --noincremental                             2>/dev/null || true
 
 if command -v lookandfeeltool >/dev/null 2>&1; then

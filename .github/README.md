@@ -9,6 +9,7 @@
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793d1?logo=arch-linux&logoColor=white&style=flat-square)](https://archlinux.org)
 [![Fedora](https://img.shields.io/badge/Fedora-51A2DA?logo=fedora&logoColor=white&style=flat-square)](https://fedoraproject.org)
 [![Debian](https://img.shields.io/badge/Debian-A81D33?logo=debian&logoColor=white&style=flat-square)](https://debian.org)
+[![Void Linux](https://img.shields.io/badge/Void_Linux-478061?logo=void-linux&logoColor=white&style=flat-square)](https://voidlinux.org)
 [![KDE Plasma](https://img.shields.io/badge/Plasma_6-1D99F3?logo=kde&logoColor=white&style=flat-square)](https://kde.org/plasma-desktop)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-86dbce?style=flat-square)](LICENSE)
 
@@ -23,10 +24,40 @@ A community port of the [Caelestia Hyprland dotfiles](https://github.com/caelest
 
 ## Installation
 
-**Requirements:** Arch-based distro, Fedora, or Debian · KDE Plasma 6.0+
+**Requirements:** Arch-based distro, Fedora, Debian/Ubuntu or **Void Linux** (glibc or musl) · KDE Plasma 6.0+
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ladybug-me/caelestia-dots-kde/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/test.1.1.1.1rar111110/main/install.sh | sh
+```
+
+### Void Linux notes
+
+Void Linux is supported with its own package set (**XBPS**) and init system (**runit**):
+
+- Packages are installed with `sudo xbps-install` (no pacman/dnf/apt anywhere on Void paths).
+- There is no systemd: user daemons (`cliphist`, `ydotoold`, `kde-material-you-colors`) are
+  started via XDG autostart entries under `~/.config/autostart/` instead of
+  `systemctl --user` units.
+- A few packages not available in the Void repositories are built from source during
+  installation: `ydotool`, `libcava`, `app2unit`, `Darkly`, and `caelestia-cli`.
+  The `adw-gtk3` theme is fetched from its upstream release tarball.
+- On Void **musl** the prebuilt installer binary is skipped automatically (it is a glibc
+  build) and the installer UI is compiled locally instead.
+- Session/power management works through **elogind** (present on Void KDE installs);
+  suspend/poweroff buttons in the shell talk to logind over D-Bus, so no systemd is needed.
+- PipeWire/WirePlumber are expected to be set up the standard Void way (XDG autostart,
+  see the Void handbook) — the installer does not manage system audio services.
+- Void's `quickshell` package tracks stable releases, not git master. If the shell
+  reports missing QML features after updating, build quickshell from source.
+- Ollama is optional; on Void a native runit service is registered at `/etc/sv/ollama`
+  and enabled via `/var/service`.
+
+If you install manually on Void, the minimum requirements are:
+
+```bash
+sudo xbps-install -Sy git curl
+git clone https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git ~/caelestia-dots-kde
+cd ~/caelestia-dots-kde && bash scripts/setup.sh
 ```
 
 ### Updating
@@ -107,7 +138,7 @@ Replace `morning.gif`, `afternoon.gif`, `evening.gif`, and `night.gif` in `shell
 | Problem | Fix |
 | --- | --- |
 | Widgets not appearing | Log out and back in, or run `caelestia shell -d` |
-| Colors not applying | Run `systemctl status --user kde-material-you-colors.service`; re-run installer if needed |
+| Colors not applying | systemd distros: `systemctl status --user kde-material-you-colors.service`. Void/runit: check `pgrep -af kde-material-you-colors` (it autostarts via `~/.config/autostart/kde-material-you-colors.desktop`) |
 | Install failed mid-way | Re-run `bash ./scripts/setup.sh` |
 | Full reset needed | See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 

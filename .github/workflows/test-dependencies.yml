@@ -86,3 +86,26 @@ jobs:
             echo "::error::[DEBIAN] Failed to install packages: $FAILED"
             exit 1
           fi
+
+  test-void:
+    runs-on: ubuntu-latest
+    container: ghcr.io/void-linux/void-glibc-full:latest
+    strategy:
+      matrix:
+        branch: [main, dev]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+      - name: Prepare Void
+        run: |
+          xbps-install -S && xbps-install -y git sudo curl
+      - name: Verify Void Dependencies
+        run: |
+          ./sdata/void-dist/installDP_void.sh || true
+          if [ -s ~/.cache/caelestia-kde/failed_packages.txt ]; then
+            FAILED=$(cat ~/.cache/caelestia-kde/failed_packages.txt | tr '\n' ' ')
+            echo "::error::[VOID] Failed to install packages: $FAILED"
+            exit 1
+          fi

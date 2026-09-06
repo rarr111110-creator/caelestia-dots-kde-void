@@ -48,6 +48,17 @@ install_if_missing() {
             return 1
         }
         echo "  [OK]  $pkg installed."
+    elif [[ "$BASE_DISTRO" == "void" ]]; then
+        if xbps-query -p pkgver "$pkg" >/dev/null 2>&1; then
+            echo "  [SKIP] $pkg already installed."
+            return 0
+        fi
+        echo "  Installing $pkg..."
+        sudo xbps-install -y "$pkg" 2>/dev/null || {
+            echo -e "  \033[0;31m[FAIL] Could not install $pkg  skipping.\033[0m"
+            return 1
+        }
+        echo "  [OK]  $pkg installed."
     fi
 }
 
@@ -56,6 +67,10 @@ if [[ "${INSTALL_KVANTUM:-true}" == "true" ]]; then
     if [[ "$BASE_DISTRO" == "debian" ]]; then
         install_if_missing qt6-style-kvantum || install_if_missing kvantum
         install_if_missing qt5-style-kvantum || true
+    elif [[ "$BASE_DISTRO" == "void" ]]; then
+        # Void's kvantum package ships the Qt6 style plugin (there is no
+        # separate kvantum-qt5 package anymore).
+        install_if_missing kvantum
     else
         install_if_missing kvantum
         install_if_missing kvantum-qt5 || true   # optional qt5 support
@@ -100,20 +115,32 @@ if [[ "${APPLY_MATERIAL_YOU:-true}" == "true" ]]; then
         else
             echo "  [SKIP] kde-material-you-colors already installed."
         fi
+    elif [[ "$BASE_DISTRO" == "void" ]]; then
+        if ! command -v kde-material-you-colors >/dev/null 2>&1; then
+            echo "  Installing kde-material-you-colors via uv..."
+            sudo xbps-install -y dbus-devel dbus-glib-devel python3-devel
+            uv tool install kde-material-you-colors >/dev/null 2>&1 || {
+                echo -e "  \033[0;31m[FAIL] Could not install kde-material-you-colors  skipping.\033[0m"
+            }
+        else
+            echo "  [SKIP] kde-material-you-colors already installed."
+        fi
     fi
 else
     echo "  [SKIP] Skipping kde-material-you-colors installation. Uninstalling if present..."
-    
-    # Stop the service if running
-    systemctl --user stop kde-material-you-colors.service 2>/dev/null || true
-    systemctl --user disable kde-material-you-colors.service 2>/dev/null || true
-    
+
+    # Stop/disable the service if it exists (systemd distros only)
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+        systemctl --user stop kde-material-you-colors.service 2>/dev/null || true
+        systemctl --user disable kde-material-you-colors.service 2>/dev/null || true
+    fi
+    # Non-systemd autostart entry (Void/runit and similar)
+    rm -f "$HOME/.config/autostart/kde-material-you-colors.desktop" 2>/dev/null || true
+
     # Uninstall the package
     if [[ "$BASE_DISTRO" == "arch" ]]; then
         sudo pacman -Rs --noconfirm kde-material-you-colors 2>/dev/null || true
-    elif [[ "$BASE_DISTRO" == "fedora" ]]; then
-        uv tool uninstall kde-material-you-colors 2>/dev/null || true
-    elif [[ "$BASE_DISTRO" == "debian" ]]; then
+    elif [[ "$BASE_DISTRO" == "fedora" || "$BASE_DISTRO" == "debian" || "$BASE_DISTRO" == "void" ]]; then
         uv tool uninstall kde-material-you-colors 2>/dev/null || true
     fi
 fi

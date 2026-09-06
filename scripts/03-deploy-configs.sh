@@ -201,12 +201,16 @@ if [[ -f "$DOTS_DIR/starship.toml" ]]; then
 fi
 
 #  Deploy Bridge Files 
-echo "  Deploying bridge files (bin, applications, systemd, kwin script)..."
+echo "  Deploying bridge files (bin, applications, services, kwin script)..."
 mkdir -p \
     "$HOME/.local/bin" \
     "$HOME/.local/share/applications" \
-    "$HOME/.config/systemd/user" \
     "$HOME/.local/share/kwin/scripts"
+
+# systemd user units only exist on systemd distros (not on Void/runit)
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    mkdir -p "$HOME/.config/systemd/user"
+fi
 
 # bin scripts
 if [[ -d "$SRC_DIR/bin" ]]; then

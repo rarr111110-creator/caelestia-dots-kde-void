@@ -59,8 +59,11 @@ fi
 
 #  Cliphist Service 
 echo "  Setting up cliphist background service..."
-mkdir -p "$HOME/.config/systemd/user"
-cat > "$HOME/.config/systemd/user/cliphist.service" << 'EOF'
+
+if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+    # systemd distros (Arch/Fedora/Debian): user service unit
+    mkdir -p "$HOME/.config/systemd/user"
+    cat > "$HOME/.config/systemd/user/cliphist.service" << 'EOF'
 [Unit]
 Description=Clipboard history service
 After=graphical-session.target
@@ -74,9 +77,30 @@ RestartSec=3
 [Install]
 WantedBy=default.target
 EOF
-systemctl --user daemon-reload
-systemctl --user enable --now cliphist.service 2>/dev/null || true
-echo "  [OK]  Cliphist background service enabled."
+    systemctl --user daemon-reload
+    systemctl --user enable --now cliphist.service 2>/dev/null || true
+    echo "  [OK]  Cliphist background service enabled (systemd)."
+else
+    # Non-systemd distros (e.g. Void with runit): XDG autostart entry.
+    mkdir -p "$HOME/.local/bin" "$HOME/.config/autostart"
+    cat > "$HOME/.local/bin/cliphist-watch.sh" << 'EOF'
+#!/bin/bash
+# cliphist-watch.sh - keep clipboard history buffers in sync (non-systemd init)
+exec /bin/bash -c "wl-paste --type text --watch cliphist store & wl-paste --type image --watch cliphist store & wl-clip-persist --clipboard regular & wait"
+EOF
+    chmod +x "$HOME/.local/bin/cliphist-watch.sh"
+    cat > "$HOME/.config/autostart/cliphist.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Cliphist clipboard watcher
+Comment=Keep cliphist clipboard history in sync
+Exec=$HOME/.local/bin/cliphist-watch.sh
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true
+EOF
+    echo "  [OK]  Cliphist background service enabled (autostart entry)."
+fi
 
 echo "[OK]  KDE settings applied."
 

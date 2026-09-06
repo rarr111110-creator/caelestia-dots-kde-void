@@ -29,10 +29,66 @@ section "Ollama AI Setup for Caelestia"
 section "Step 1/4 - Install Ollama"
 curl -fsSL https://ollama.com/install.sh | sh  # ci:allow-curl-pipe
 
-# 2. Enable and start the systemd service
+# 2. Enable and start the Ollama daemon
 section "Step 2/4 - Enable and Start Ollama Daemon"
-sudo systemctl enable --now ollama
-echo -e "${GREEN}Ollama daemon is now running in the background.${NC}"
+
+# The upstream ollama installer only knows how to register a systemd unit, so
+# on runit systems (Void Linux) we create the service ourselves following the
+# Void conventions: service directory under /etc/sv, enabled via a symlink in
+# /var/service.
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    sudo systemctl enable --now ollama
+    echo -e "${GREEN}Ollama daemon is now running in the background (systemd).${NC}"
+elif command -v sv >/dev/null 2>&1 && [ -d /etc/sv ]; then
+    echo -e "${YELLOW}systemd not found; setting up a runit service for ollama...${NC}"
+
+    OLLAMA_BIN="$(command -v ollama || true)"
+    if [ -z "$OLLAMA_BIN" ] && [ -x /usr/local/bin/ollama ]; then
+        OLLAMA_BIN="/usr/local/bin/ollama"
+    fi
+    if [ -z "$OLLAMA_BIN" ]; then
+        echo -e "${RED}ollama binary not found; the upstream install must have failed.${NC}"
+        exit 1
+    fi
+
+    # Dedicated system user (matches what the upstream systemd unit does).
+    if ! id ollama >/dev/null 2>&1; then
+        sudo useradd -r -s /usr/sbin/nologin -U -m -d /usr/share/ollama ollama 2>/dev/null || true
+    fi
+
+    # GPU access groups when present (mirrors the upstream installer intent).
+    for grp in render video; do
+        if getent group "$grp" >/dev/null 2>&1; then
+            sudo usermod -aG "$grp" ollama 2>/dev/null || true
+        fi
+    done
+
+    sudo mkdir -p /etc/sv/ollama
+    # HOME is set explicitly: chpst switches uid/gid but keeps the caller's
+    # environment, and ollama stores its models under $HOME/.ollama — running
+    # as root's HOME would dump multi-GB models somewhere unexpected.
+    sudo tee /etc/sv/ollama/run > /dev/null << EOF
+#!/bin/sh
+exec 2>&1
+export HOME=/usr/share/ollama
+exec chpst -u ollama:ollama "$OLLAMA_BIN" serve
+EOF
+    sudo chmod +x /etc/sv/ollama/run
+
+    # Enable: symlink into the live service directory and start it.
+    # ln -sfn refuses to overwrite a pre-existing *directory*, so remove any
+    # stale entry first (covers partial previous installs).
+    if [ -d /var/service ]; then
+        if [ -L /var/service/ollama ] || [ -d /var/service/ollama ]; then
+            sudo rm -rf /var/service/ollama
+        fi
+        sudo ln -s /etc/sv/ollama /var/service/ollama
+    fi
+    sudo sv start ollama 2>/dev/null || true
+    echo -e "${GREEN}Ollama runit service enabled and started (/etc/sv/ollama).${NC}"
+else
+    echo -e "${YELLOW}No systemd or runit found; start ollama manually with: ollama serve${NC}"
+fi
 
 # 3. Prompt user to download models
 section "Step 3/4 - Model Selection"
@@ -69,8 +125,8 @@ esac
 # 4. Final configuration and setup
 section "Step 4/4 - Finalize Setup"
 echo -e "Setting up autostart for Ollama with Caelestia Shell."
-# Note: Since the systemd service is enabled globally, it will start automatically on boot.
-# If a user-level service is preferred in the future, we can configure systemd --user.
+# Note: The service (systemd unit on Arch/Fedora/Debian, runit service on
+# Void) is enabled system-wide and starts automatically on boot.
 
 echo -e "\n${GREEN}===================================================${NC}"
 echo -e "${GREEN}          Ollama Setup Completed Successfully!      ${NC}"
