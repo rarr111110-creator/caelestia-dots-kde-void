@@ -2,7 +2,7 @@
 """
 Generate a contributor stats snippet for the README.
 
-Queries the GitHub API for the rarr111110-creator/test.1.1.1.1rar111110 repository and
+Queries the GitHub API for the rarr111110-creator/caelestia-dots-kde-void repository and
 counts issues and pull requests authored by each contributor.  Outputs a
 Markdown table suitable for pasting between the <!-- contributors-start -->
 and <!-- contributors-end --> markers in .github/README.md.
@@ -20,7 +20,7 @@ import sys
 import urllib.request
 from collections import defaultdict
 
-REPO = "rarr111110-creator/test.1.1.1.1rar111110"
+REPO = "rarr111110-creator/caelestia-dots-kde-void"
 API_BASE = f"https://api.github.com/repos/{REPO}"
 HEADERS = {
     "User-Agent": "caelestia-contributors-script",

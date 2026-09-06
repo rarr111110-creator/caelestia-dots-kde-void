@@ -5,10 +5,10 @@
 #   Clone (or update) the repo and hand off to setup.sh.
 #   Install with a single command:
 #
-#     curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/test.1.1.1.1rar111110/main/install.sh | sh
+#     curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/caelestia-dots-kde-void/main/install.sh | sh
 #
 #   Overridable via environment:
-#     CAELESTIA_REPO    repository URL (default: rarr111110-creator/test.1.1.1.1rar111110)
+#     CAELESTIA_REPO    repository URL (default: rarr111110-creator/caelestia-dots-kde-void)
 #     CAELESTIA_BRANCH  branch to install (default: main)
 #     CAELESTIA_DIR     target directory (default: ~/caelestia-dots-kde)
 # ==============================================================
@@ -58,7 +58,7 @@ if [ ! -t 0 ]; then
     fi
 fi
 
-REPO="${CAELESTIA_REPO:-https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git}"
+REPO="${CAELESTIA_REPO:-https://github.com/rarr111110-creator/caelestia-dots-kde-void.git}"
 BRANCH="${CAELESTIA_BRANCH:-main}"
 DEST="${CAELESTIA_DIR:-$HOME/caelestia-dots-kde}"
 

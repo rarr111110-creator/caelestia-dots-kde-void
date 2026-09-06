@@ -27,7 +27,7 @@ A community port of the [Caelestia Hyprland dotfiles](https://github.com/caelest
 **Requirements:** Arch-based distro, Fedora, Debian/Ubuntu or **Void Linux** (glibc or musl) · KDE Plasma 6.0+
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/test.1.1.1.1rar111110/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/caelestia-dots-kde-void/main/install.sh | sh
 ```
 
 ### Void Linux notes
@@ -56,7 +56,7 @@ If you install manually on Void, the minimum requirements are:
 
 ```bash
 sudo xbps-install -Sy git curl
-git clone https://github.com/rarr111110-creator/test.1.1.1.1rar111110.git ~/caelestia-dots-kde
+git clone https://github.com/rarr111110-creator/caelestia-dots-kde-void.git ~/caelestia-dots-kde
 cd ~/caelestia-dots-kde && bash scripts/setup.sh
 ```
 

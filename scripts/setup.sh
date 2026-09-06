@@ -368,7 +368,7 @@ try_download_prebuilt_installer() {
     local tmp_bin
     tmp_bin="$(mktemp)"
     local url
-    url="https://github.com/rarr111110-creator/test.1.1.1.1rar111110/releases/download/caelestia-bin-repo/caelestia-install-${arch}"
+    url="https://github.com/rarr111110-creator/caelestia-dots-kde-void/releases/download/caelestia-bin-repo/caelestia-install-${arch}"
     if curl -fsSL --connect-timeout 10 --max-time 120 "$url" -o "$tmp_bin" 2>/dev/null; then
         chmod +x "$tmp_bin"
         printf '%s\n' "$tmp_bin"
