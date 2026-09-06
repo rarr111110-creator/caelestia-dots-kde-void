@@ -7,8 +7,6 @@
 ### A KDE Plasma port of the caelestia shell
 
 
-### A KDE Plasma port of the caelestia shell
-
 ### !Este es un fork personal para adaptar el repositorio "caelestia-dots-kde" a void linux doy creditos al creador original ladybug-me.
 
 ### IMPORTANTE nose si funcione no hice pruebas
