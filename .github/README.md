@@ -9,8 +9,7 @@
 
 ### !Este es un fork personal para adaptar el repositorio "caelestia-dots-kde" a void linux doy creditos al creador original ladybug-me.
 
-### IMPORTANTE nose si funcione no hice pruebas
-
+### IMPORTANTE funciona a medias 
 
 
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793d1?logo=arch-linux&logoColor=white&style=flat-square)](https://archlinux.org)
