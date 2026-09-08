@@ -155,7 +155,6 @@ PageBase {
         }
 
         StepperRow {
-            last: true
             enabled: root.idleSuspendEnabledState
             label: qsTr("Idle suspend timer")
             subtext: root.idleSuspendEnabledState
@@ -169,6 +168,44 @@ PageBase {
                 if (root.idleSuspendEnabledState)
                     root.setSuspendTimeoutMinutes(v)
             }
+        }
+
+        ToggleRow {
+            text: qsTr("Lock before sleep")
+            subtext: qsTr("Lock the session before suspending")
+            checked: Config.general.idle.lockBeforeSleep
+            onToggled: GlobalConfig.general.idle.lockBeforeSleep = checked
+        }
+
+        ToggleRow {
+            text: qsTr("Inhibit while audio")
+            subtext: qsTr("Prevent idle actions while audio is playing")
+            checked: Config.general.idle.inhibitWhenAudio
+            onToggled: GlobalConfig.general.idle.inhibitWhenAudio = checked
+        }
+
+        ToggleRow {
+            last: true
+            text: qsTr("Inhibit while charging")
+            subtext: qsTr("Prevent idle actions while charging")
+            checked: Config.general.idle.inhibitWhenCharging
+            onToggled: GlobalConfig.general.idle.inhibitWhenCharging = checked
+        }
+
+        SectionHeader {
+            text: qsTr("Battery warnings")
+        }
+
+        StepperRow {
+            first: true
+            last: true
+            label: qsTr("Critical battery level")
+            subtext: qsTr("Percentage at which the critical warning fires")
+            value: Config.general.battery.criticalLevel
+            from: 1
+            to: 50
+            stepSize: 1
+            onMoved: v => GlobalConfig.general.battery.criticalLevel = v
         }
     }
 }

@@ -49,6 +49,9 @@ class NmQt : public QObject {
     Q_PROPERTY(QVariantMap wirelessDeviceDetails READ wirelessDeviceDetails NOTIFY wirelessDeviceDetailsChanged)
     Q_PROPERTY(QVariantMap ethernetDeviceDetails READ ethernetDeviceDetails NOTIFY ethernetDeviceDetailsChanged)
 
+    // -- Saved connection security (ssid -> key-mgmt, e.g. "wpa-psk") --
+    Q_PROPERTY(QVariantMap savedConnectionSecurity READ savedConnectionSecurity NOTIFY savedConnectionSecurityChanged)
+
     QML_ELEMENT
     QML_SINGLETON
 
@@ -77,6 +80,7 @@ public:
 
     QVariantMap wirelessDeviceDetails() const;
     QVariantMap ethernetDeviceDetails() const;
+    QVariantMap savedConnectionSecurity() const;
 
     // -- QML-invokable actions --
 
@@ -137,6 +141,28 @@ public:
     Q_INVOKABLE void getEthernetDeviceDetails(const QString& interfaceName,
                                               QJSValue callback = {});
 
+    /// Read IPv4 settings of a saved connection (matched by name or SSID).
+    Q_INVOKABLE void getIpv4Config(const QString& connectionName, QJSValue callback = {});
+
+    /// Write IPv4 settings to a saved connection.
+    Q_INVOKABLE void setIpv4Config(const QString& connectionName, const QVariantMap& config,
+                                   QJSValue callback = {});
+
+    /// Toggle autoconnect on a saved connection.
+    Q_INVOKABLE void setAutoconnect(const QString& connectionName, bool enabled,
+                                    QJSValue callback = {});
+
+    /// Create and activate a hidden WiFi network.
+    Q_INVOKABLE void addHiddenNetwork(const QString& ssid, const QString& password,
+                                      const QString& security, bool hidden,
+                                      QJSValue callback = {});
+
+    /// Formatted link speed (e.g. "1000 Mb/s"), empty if unknown.
+    Q_INVOKABLE QString ethernetSpeed(const QString& interfaceName) const;
+
+    /// Formatted cumulative RX+TX bytes, empty if unknown.
+    Q_INVOKABLE QString ethernetDataUsage(const QString& interfaceName) const;
+
 signals:
     void isConnectedChanged();
     void wifiEnabledChanged();
@@ -159,6 +185,7 @@ signals:
 
     void wirelessDeviceDetailsChanged();
     void ethernetDeviceDetailsChanged();
+    void savedConnectionSecurityChanged();
 
     /// Emitted when a connection attempt fails outright.
     void connectionFailed(const QString& ssid);
@@ -220,6 +247,7 @@ private:
     QString m_vpnPendingConnection;
     QVariantMap m_wirelessDeviceDetails;
     QVariantMap m_ethernetDeviceDetails;
+    QVariantMap m_savedConnectionSecurity;
     QString m_connectingSsid;
     bool m_wifiEnabled = true;
     bool m_scanning = false;

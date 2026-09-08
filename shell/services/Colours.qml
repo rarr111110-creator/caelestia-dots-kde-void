@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Caelestia
+import Caelestia.Images
 import Caelestia.Config
 import Caelestia.Services
 import qs.services
@@ -150,20 +151,20 @@ Singleton {
     function harmonizeWith(designColor: color, sourceColor: color): color {
         let fromHue = designColor.hslHue;
         let toHue = sourceColor.hslHue;
-        
+
         let diff = toHue - fromHue;
         if (diff > 0.5) diff -= 1.0;
         else if (diff < -0.5) diff += 1.0;
-        
+
         const cap = 15.0 / 360.0;
         let rotation = diff * 0.5;
         if (rotation > cap) rotation = cap;
         else if (rotation < -cap) rotation = -cap;
-        
+
         let outputHue = fromHue + rotation;
         if (outputHue < 0) outputHue += 1.0;
         if (outputHue > 1) outputHue -= 1.0;
-        
+
         return Qt.hsla(outputHue, designColor.hslSaturation, designColor.hslLightness, designColor.a);
     }
 
@@ -248,7 +249,7 @@ Singleton {
         const varNum = variantMap[root.variant] ?? 5;
         const color = String(root.palette.m3primary_paletteKeyColor);
         const lightMode = root.currentLight ? "True" : "False";
-        
+
         const scriptPath = Quickshell.shellPath("scripts/sync-kmyc.sh");
         Quickshell.execDetached(["bash", scriptPath, color, varNum, lightMode]);
     }
@@ -302,6 +303,18 @@ Singleton {
         watchChanges: true
         onFileChanged: reload()
         onLoaded: root.load(text(), false)
+    }
+
+    // The external caelestia CLI rewrites scheme.json atomically (os.replace),
+    // which the FileView's watcher can miss after the first replacement. The
+    // C++ SchemeLoader re-arms its own watcher for exactly this case, so reload
+    // the palette from its signal as the authoritative trigger.
+    Connections {
+        target: SchemeLoader
+
+        function onCurrentSchemeChanged(): void {
+            schemeFile.reload();
+        }
     }
 
     Timer {

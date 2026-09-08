@@ -4,7 +4,7 @@
 Validates cross-cutting concerns:
   - All shell scripts parse cleanly
   - All Python files compile cleanly
-  - Version is consistent across all declaration points
+  - version.env is the single source of truth; the CMake build derives from it
   - Installer entrypoints and referenced scripts exist
   - Submodules are properly initialized
   - Workflow files are valid YAML
@@ -19,24 +19,12 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
-from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER_ENTRYPOINTS = [
     Path("scripts", "setup.sh"),
     Path("update.sh"),
     Path("uninstall.sh"),
-]
-
-VERSION_FILE_PATHS = [
-    ".github/version.env",                      # canonical source
-    "shell/CMakeLists.txt",                      # hardcoded fallback
-]
-
-# Files where the version string must appear
-VERSION_CONSUMERS = [
-    ("shell/CMakeLists.txt", r'set\(VERSION\s+"(v[\d.]+)"\)'),
-    (".github/version.env", r'^VERSION=(v[\d.]+)$'),
 ]
 
 
@@ -96,8 +84,18 @@ class MetadataConsistencyTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        cmake_match = re.search(r'set\(VERSION "(v?[0-9]+\.[0-9]+\.[0-9]+)"\)', cmake_text)
-        self.assertIsNotNone(cmake_match, "Could not find shell version in shell/CMakeLists.txt")
+        # shell/CMakeLists.txt must derive its version from version.env (the
+        # single source of truth) instead of hardcoding its own copy.
+        self.assertIn(
+            ".github/version.env",
+            cmake_text,
+            "shell/CMakeLists.txt must read the version from version.env",
+        )
+        self.assertNotRegex(
+            cmake_text,
+            r'set\(VERSION\s+"[^"]*\d[^"]*"\)',
+            "shell/CMakeLists.txt hardcodes a version - bump version.env only",
+        )
         self.assertIn("CUtils.version", about_text, "About page must use dynamic CUtils.version logic")
 
     def test_validation_scripts_referenced_by_docs_exist(self) -> None:
@@ -119,7 +117,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_setup_references_existing_step_scripts(self) -> None:
         runner_text = (ROOT / "installer/src/Runner.cpp").read_text(encoding="utf-8")
-        matches = re.findall(r'\{"[^"]+",\s*"(scripts/[^"]+)",\s*"[^"]+"\}', runner_text)
+        matches = re.findall(r'\{"[^"]+",\s*"(scripts/[^"]+)",\s*"[^"]+",\s*"[^"]+"\}', runner_text)
 
         self.assertTrue(matches, "No installer steps found in Runner.cpp")
 
@@ -131,7 +129,7 @@ class InstallerTests(unittest.TestCase):
     def test_no_duplicate_step_names(self) -> None:
         """Runner.cpp must not define two steps with the same display name."""
         runner_text = (ROOT / "installer/src/Runner.cpp").read_text(encoding="utf-8")
-        names = re.findall(r'\{"([^"]+)",\s*"(scripts/[^"]+)",\s*"[^"]+"\}', runner_text)
+        names = re.findall(r'\{"([^"]+)",\s*"(scripts/[^"]+)",\s*"[^"]+",\s*"[^"]+"\}', runner_text)
         display_names = [n[0] for n in names]
 
         seen: dict[str, int] = {}
@@ -152,7 +150,7 @@ class InstallerTests(unittest.TestCase):
         named with numbered prefixes should be consistent with it.
         """
         runner_text = (ROOT / "installer/src/Runner.cpp").read_text(encoding="utf-8")
-        scripts = re.findall(r'\{"[^"]+",\s*"(scripts/[^"]+)",\s*"[^"]+"\}', runner_text)
+        scripts = re.findall(r'\{"[^"]+",\s*"(scripts/[^"]+)",\s*"[^"]+",\s*"[^"]+"\}', runner_text)
 
         prev_num = -1
         for script in scripts:
@@ -167,24 +165,21 @@ class InstallerTests(unittest.TestCase):
 
 
 class VersionConsistencyTests(unittest.TestCase):
-    def test_version_env_matches_cmake(self) -> None:
-        """The canonical version in version.env must match shell/CMakeLists.txt."""
+    def test_cmake_has_no_hardcoded_version(self) -> None:
+        """version.env is the single source of truth - CMakeLists derives from it."""
         env_text = (ROOT / ".github" / "version.env").read_text(encoding="utf-8").strip()
         env_match = re.match(r"^VERSION=(v[\d.]+)$", env_text)
         self.assertIsNotNone(env_match, f"Invalid version.env format: {env_text!r}")
-        canonical_version = cast(re.Match, env_match).group(1)
 
         cmake_text = (ROOT / "shell" / "CMakeLists.txt").read_text(encoding="utf-8")
-        cmake_match = re.search(r'set\(VERSION\s+"(v?[\d.]+)"\)', cmake_text)
-        self.assertIsNotNone(cmake_match, "Could not find set(VERSION ...) in shell/CMakeLists.txt")
-        cmake_version = cast(re.Match, cmake_match).group(1)
-        # Normalize: strip leading 'v' for comparison
-        canonical_v = canonical_version.lstrip("v")
-        cmake_v = cmake_version.lstrip("v")
-
-        self.assertEqual(
-            canonical_v, cmake_v,
-            f"version.env has {canonical_version} but shell/CMakeLists.txt has {cmake_version}"
+        self.assertIn(
+            ".github/version.env",
+            cmake_text,
+            "shell/CMakeLists.txt must derive its version from version.env",
+        )
+        self.assertIsNone(
+            re.search(r'set\(VERSION\s+"[^"]*\d[^"]*"\)', cmake_text),
+            "shell/CMakeLists.txt must not hardcode a version - bump version.env only",
         )
 
     def test_version_format_valid(self) -> None:
@@ -293,12 +288,11 @@ class ScriptNumberingTests(unittest.TestCase):
     def test_install_step_scripts_have_consistent_numbers(self) -> None:
         """Scripts in the scripts/ directory with 00- prefix must be consecutive.
 
-        Scripts: 00-backup-themes.sh, 00-banner.sh, 00a-system-update.sh,
-        01-ensure-prereqs.sh, 02-core-packages.sh, 02-packages.sh,
-        02-shell-packages.sh, 02-theme-packages.sh, 02-utility-packages.sh,
+        Scripts: 00-backup-themes.sh, 00a-system-update.sh,
+        01-ensure-prereqs.sh, 02-all-packages.sh, 02-packages.sh,
         02a-submodules.sh, 03-deploy-configs.sh, 04-deploy-kde.sh,
         06-services.sh, 07-kde-apps.sh, 08-build-shell.sh,
-        09-system-tweaks.sh, 10-autostart.sh
+        09-system-tweaks.sh, 10-autostart.sh, 11-optional-apps.sh
         """
         scripts_dir = ROOT / "scripts"
         if not scripts_dir.is_dir():

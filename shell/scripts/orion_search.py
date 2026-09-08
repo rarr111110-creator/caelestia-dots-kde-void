@@ -31,7 +31,7 @@ def search_web(query, page_num):
                         parsed_urls.append(parsed['uddg'][0])
                     else:
                         parsed_urls.append(u)
-                except:
+                except Exception:
                     parsed_urls.append(u)
             else:
                 parsed_urls.append(u)

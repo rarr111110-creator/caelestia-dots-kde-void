@@ -1,5 +1,8 @@
 Thanks for contributing! A few quick things help reviewers give you faster feedback.
 
+> [!WARNING]
+> This PR is intended to be merged into the **dev** branch only.
+
 ## What does this change?
 
 <!-- A sentence or two about what this PR does. -->

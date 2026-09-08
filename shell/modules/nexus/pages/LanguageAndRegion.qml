@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Caelestia
 import Caelestia.Config
 import qs.components
 import qs.components.controls
@@ -47,6 +49,18 @@ PageBase {
         }
     ]
 
+    // "system" plus every language with an installed catalogue (see shell/translations)
+    readonly property var languageOptions: [
+        {
+            code: "system",
+            label: qsTr("System language")
+        },
+        ...Translations.available.map(lang => ({
+                    code: lang.code,
+                    label: lang.nativeName
+                }))
+    ]
+
     // Clock format (index 0 = 24-hour, 1 = 12-hour — matches Time.useTwelveHourClock)
     readonly property list<MenuItem> clockItems: [
         MenuItem {
@@ -71,48 +85,32 @@ PageBase {
             text: qsTr("Language")
         }
 
-        // Read-only: the shell follows the system locale (no in-shell translations yet)
-        ConnectedRect {
-            Layout.fillWidth: true
+        Variants {
+            id: languageVariants
+
+            model: root.languageOptions
+
+            MenuItem {
+                required property var modelData
+
+                readonly property string code: modelData.code
+
+                text: modelData.label
+                icon: modelData.code === GlobalConfig.general.language ? "check" : ""
+                activeIcon: "translate"
+            }
+        }
+
+        SelectRow {
             first: true
             last: true
-            implicitHeight: localeLayout.implicitHeight + localeLayout.anchors.margins * 2
-
-            RowLayout {
-                id: localeLayout
-
-                anchors.fill: parent
-                anchors.margins: Tokens.padding.medium
-                anchors.leftMargin: Tokens.padding.largeIncreased
-                anchors.rightMargin: Tokens.padding.largeIncreased
-                spacing: Tokens.spacing.medium
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: qsTr("System language")
-                        font: Tokens.font.body.small
-                        elide: Text.ElideRight
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: qsTr("Follows your system locale (%1)").arg(Qt.locale().name)
-                        color: Colours.palette.m3onSurfaceVariant
-                        font: Tokens.font.label.small
-                        elide: Text.ElideRight
-                    }
-                }
-
-                StyledText {
-                    text: Qt.locale().nativeLanguageName || Qt.locale().name
-                    color: Colours.palette.m3onSurfaceVariant
-                    font: Tokens.font.body.small
-                }
-            }
+            label: qsTr("Shell language")
+            subtext: GlobalConfig.general.language === "system" ? qsTr("Follows your system locale (%1)").arg(Qt.locale().name) : qsTr("Untranslated text falls back to English")
+            menuItems: languageVariants.instances
+            active: menuItems.find(i => i.code === GlobalConfig.general.language) ?? null
+            fallbackIcon: "translate"
+            fallbackText: qsTr("System language")
+            onSelected: item => GlobalConfig.general.language = item.code
         }
 
         // Weather
@@ -171,76 +169,54 @@ PageBase {
                     }
                 }
 
-                StyledRect {
+                SearchBar {
+                    id: locationField
+
                     Layout.fillWidth: true
-                    radius: Tokens.rounding.full
-                    color: Colours.layer(Colours.palette.m3surfaceContainerHigh, 2)
-                    border.color: Colours.palette.m3outlineVariant
-                    implicitHeight: searchRow.implicitHeight + Tokens.padding.small * 2
+                    placeholderText: qsTr("Search city or region")
+                    font: Tokens.font.body.large
+                    bg.color: Colours.tPalette.m3surfaceContainerLowest
+                    bg.border.color: Colours.palette.m3outlineVariant
+                    searchIcon.fontStyle: Tokens.font.icon.medium
+                    searchIcon.anchors.leftMargin: Tokens.padding.largeIncreased
+                    clearIcon.font: Tokens.font.icon.medium
+                    clearIcon.padding: Tokens.padding.extraSmall
 
-                    RowLayout {
-                        id: searchRow
+                    text: Weather.locationSearchQuery
 
-                        anchors.fill: parent
-                        anchors.leftMargin: Tokens.padding.medium
-                        anchors.rightMargin: Tokens.padding.medium
-                        spacing: Tokens.spacing.small
-
-                        MaterialIcon {
-                            text: "search"
-                            color: Colours.palette.m3onSurfaceVariant
+                    onTextChanged: {
+                        root.highlightedLocationIdx = -1;
+                        Weather.queueLocationSearch(text);
+                        if (text.length === 0) {
+                            root.pendingLocation = null;
+                            Weather.locationSearchResults = [];
+                            Weather.locationSearchError = "";
                         }
+                    }
 
-                        StyledTextField {
-                            id: locationField
+                    Keys.onDownPressed: {
+                        if (Weather.locationSearchResults.length === 0)
+                            return;
 
-                            Layout.fillWidth: true
-                            placeholderText: qsTr("Search city or region")
-                            text: Weather.locationSearchQuery
+                        root.highlightedLocationIdx = Math.min(root.highlightedLocationIdx + 1, Weather.locationSearchResults.length - 1);
+                    }
 
-                            onTextChanged: {
-                                root.highlightedLocationIdx = -1;
-                                Weather.queueLocationSearch(text);
-                            }
+                    Keys.onUpPressed: {
+                        if (Weather.locationSearchResults.length === 0)
+                            return;
 
-                            Keys.onDownPressed: {
-                                if (Weather.locationSearchResults.length === 0)
-                                    return;
+                        if (root.highlightedLocationIdx < 0)
+                            root.highlightedLocationIdx = Weather.locationSearchResults.length - 1;
+                        else
+                            root.highlightedLocationIdx = Math.max(root.highlightedLocationIdx - 1, 0);
+                    }
 
-                                root.highlightedLocationIdx = Math.min(root.highlightedLocationIdx + 1, Weather.locationSearchResults.length - 1);
-                            }
+                    Keys.onReturnPressed: {
+                        if (Weather.locationSearchResults.length === 0)
+                            return;
 
-                            Keys.onUpPressed: {
-                                if (Weather.locationSearchResults.length === 0)
-                                    return;
-
-                                if (root.highlightedLocationIdx < 0)
-                                    root.highlightedLocationIdx = Weather.locationSearchResults.length - 1;
-                                else
-                                    root.highlightedLocationIdx = Math.max(root.highlightedLocationIdx - 1, 0);
-                            }
-
-                            Keys.onReturnPressed: {
-                                if (Weather.locationSearchResults.length === 0)
-                                    return;
-
-                                const idx = root.highlightedLocationIdx >= 0 ? root.highlightedLocationIdx : 0;
-                                root.selectLocationCandidate(Weather.locationSearchResults[idx]);
-                            }
-                        }
-
-                        IconButton {
-                            icon: "close"
-                            type: IconButton.Text
-                            disabled: locationField.text.length === 0
-
-                            onClicked: {
-                                locationField.text = "";
-                                root.pendingLocation = null;
-                                Weather.locationSearchResults = [];
-                                Weather.locationSearchError = "";
-                            }
-                        }
+                        const idx = root.highlightedLocationIdx >= 0 ? root.highlightedLocationIdx : 0;
+                        root.selectLocationCandidate(Weather.locationSearchResults[idx]);
                     }
                 }
 

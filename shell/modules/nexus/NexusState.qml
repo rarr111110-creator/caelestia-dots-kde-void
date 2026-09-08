@@ -15,6 +15,13 @@ QtObject {
     property string wallpaperFilterType: "all"
     property BluetoothDevice selectedBtDevice
     property DesktopEntry selectedApp
+    property int editingVpnIndex: -1
+    property string selectedNetworkSsid
+    property string selectedEthernetInterface
+    property bool networkDetailsFromSaved
+
+    // Pre-filled SSID for AddNetworkPage when password is needed for an unsaved network
+    property string pendingNetworkSsid: ""
 
     signal close
     signal subPageOpened(idx: int)

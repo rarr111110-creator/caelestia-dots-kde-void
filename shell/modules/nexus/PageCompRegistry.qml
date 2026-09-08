@@ -11,6 +11,7 @@ import qs.modules.nexus.pages.apps
 import qs.modules.nexus.pages.audio
 import qs.modules.nexus.pages.bluetooth
 import qs.modules.nexus.pages.desktop
+import qs.modules.nexus.pages.network
 import qs.modules.nexus.pages.panels
 import qs.modules.nexus.pages.services
 import qs.modules.nexus.pages.utilities
@@ -57,6 +58,9 @@ QtObject {
                 }
                 Component {
                     KMYCSettings {}
+                }
+                Component {
+                    LockScreenPage {}
                 }
             }
         },
@@ -144,6 +148,24 @@ QtObject {
                 Component {
                     NetworkPage {}
                 }
+                Component {
+                    EthernetDetailPage {}
+                }
+                Component {
+                    AddNetworkPage {}
+                }
+                Component {
+                    NetworkDetailPage {}
+                }
+                Component {
+                    AddVpnPage {}
+                }
+                Component {
+                    AllNetworksPage {}
+                }
+                Component {
+                    SavedNetworksPage {}
+                }
             }
         },
         Component {
@@ -226,6 +248,14 @@ QtObject {
             StackPage {
                 Component {
                     PowerPage {}
+                }
+            }
+        },
+        Component {
+            // Session
+            StackPage {
+                Component {
+                    SessionPage {}
                 }
             }
         },
@@ -313,19 +343,19 @@ QtObject {
 
             MaterialIcon {
                 text: "handyman"
-                color: Colours.palette.m3onSurfaceVariant
+                color: Colours.palette.m3outlineVariant
                 fontStyle: Tokens.font.icon.extraLarge
                 Layout.alignment: Qt.AlignHCenter
             }
             StyledText {
                 text: qsTr("Page under construction")
-                color: Colours.palette.m3onSurfaceVariant
+                color: Colours.palette.m3outlineVariant
                 font: Tokens.font.title.large
                 Layout.alignment: Qt.AlignHCenter
             }
             StyledText {
                 text: qsTr("This page will be available in a future update.")
-                color: Colours.palette.m3onSurfaceVariant
+                color: Colours.palette.m3outlineVariant
                 font: Tokens.font.body.large
                 Layout.alignment: Qt.AlignHCenter
             }

@@ -124,7 +124,7 @@ The project enables ccache in both `installer/CMakeLists.txt` and `shell/CMakeLi
 | `quickshell-git` | `errornointernet/quickshell` | COPR may be out of date |
 | `gpu-screen-recorder` | `brycensranch/gpu-screen-recorder-git` | May need `ffmpeg` from RPM Fusion |
 | `app2unit` | `celestelove/app2unit` | Falls back to `make install` |
-| `libcava` | `celestelove/libcava` | Falls back to manual build from GitHub |
+| `libcava` | `celestelove/libcava` | Package-manager only; no source build |
 | `starship` | `atim/starship` | Stable, rarely fails |
 | `wl-clip-persist` | `leloubil/wl-clip-persist` | Needed for clipboard persistence |
 
@@ -260,39 +260,29 @@ The screenshot tool uses `spectacle` (KDE's native screenshot utility) via the `
 
 ## 4. Runtime Issues — Lock Screen
 
-### 4.1 Lock Screen Shows Default KDE Wallpaper
+### 4.1 Lock Screen Greeter Diagnostic
 
-The lock screen runs inside `plasma-wallpaper-application` as a proxy workaround, because KWin blocks third-party Wayland lock screen clients.
+The Caelestia lock screen runs as a native KDE Plasma 6 shell package (`caelestia.desktop`), loaded directly by KDE's `kscreenlocker_greet`.
 
 **Diagnostic commands:**
 ```bash
-# Verify plugin is installed
-kpackagetool6 --list -t Plasma/Wallpaper
-# Read the configured command
-kreadconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group net.dosowisko.PlasmaApplicationWallpaper --group General --key command
+# Verify Caelestia shell package is configured
+kreadconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage"
+# Expected output: caelestia.desktop
+
+# Verify greeter files exist in local plasma shells directory
+ls -la ~/.local/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreenUi.qml
+
+# Test and run the greeter in a window (non-blocking test)
+/usr/lib/kscreenlocker_greet --testing
 ```
 
-| Symptom | Cause |
-|---|---|
-| Default KDE wallpaper on lock | `plasma-wallpaper-application` plugin not installed. Install from `src/plasma-wallpaper-application/`: `kpackagetool6 -t Plasma/Wallpaper -i package` |
-| Black screen on lock | Quickshell can't connect to the proxy socket. Check QML import paths in the plugin settings. |
-| Lock screen ignores input | PAM configuration may be incorrect. Check `shell/assets/pam.d/`. |
-
-### 4.2 High CPU Usage While Locked
-
-The lock screen renders via a nested Wayland compositor using **software compositing** — every frame is rendered on the CPU.
-
-**If CPU usage is >30% while locked:**
-
-1. **Reduce FPS:** In KDE System Settings → Screen Locking → Wallpaper plugin settings, set FPS to `1`–`15`
-2. **Remove animated widgets:** Animated lock screen widgets continuously generate frames
-3. **Snap values, don't animate:** On timer-updated data (CPU, RAM), use instant value updates rather than `Behavior` animations
-
-**Developer rules (from lock screen architecture):**
-- No continuous animations (rotation, marquees, scrolling text)
-- Synchronize polling intervals across widgets to batch frame damage
-- Don't combine `Behavior` animations with 1-second timer updates
-- Set `ShaderEffectSource.live = false` except during transitions
+| Symptom | Cause | Solution |
+|---|---|---|
+| Stock Breeze lock screen appears | `ShellPackage` reset after KDE update or theme switch. | Caelestia autostart (`caelestia-autostart.sh`) automatically self-heals this at next login if `caelestia.desktop` is present. To restore immediately in session: `kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop" && kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" --delete`. |
+| Lock screen fails or crashes | Greeter files missing or corrupted in `~/.local/share/plasma/shells/`. | Re-deploy via `BUNDLE_DIR=. ./scripts/02-packages.sh` or `cp -r src/kde/shells/caelestia.desktop ~/.local/share/plasma/shells/`. |
+| Lock screen shows wallpaper error | Legacy `PlasmaApplicationWallpaper` left in `kscreenlockerrc`. | Reset WallpaperPlugin: `kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin "org.kde.image"`. |
+| Profile picture missing | `~/.face` does not exist and no system user avatar set. | Place your avatar image at `~/.face` or configure an avatar in KDE System Settings → Users. |
 
 ---
 
@@ -304,7 +294,7 @@ The lock screen renders via a nested Wayland compositor using **software composi
 |---|---|
 | Plasma style unchanged | `APPLY_DARKLY` was set to `false` in the configuration menu |
 | Window decorations missing | The installer tries `org.kde.darkly` library, falls back silently to `org.kde.breeze` |
-| `lookandfeeltool --apply "Darkly"` failed | The `darkly` package may not be installed (AUR/COPR only) |
+| `lookandfeeltool --apply "Darkly"` failed | The `darkly` package may not be installed (AUR/COPR/prebuilt packages) |
 
 **Manual apply:**
 ```bash
@@ -673,8 +663,7 @@ systemctl --user restart plasma-plasmashell
 | Problem | Quick Fix |
 |---|---|
 | Shell won't start | `quickshell -d -n -p ~/.config/quickshell/caelestia/shell.qml` |
-| Lock screen blank | `cd src/plasma-wallpaper-application && kpackagetool6 -t Plasma/Wallpaper -i package` |
-| High CPU while locked | Set wallpaper plugin FPS to 1 in System Settings |
+| Lock screen not active | `kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop"` |
 | Stale lock file | `rm -f "${XDG_RUNTIME_DIR:-/tmp}/caelestia-setup.lock"` |
 | Missing QML module | `export QML2_IMPORT_PATH="$HOME/.local/lib/qt6/qml"` |
 | No window thumbnails | `kbuildsycoca6 --noincremental && qdbus6 org.kde.KWin /KWin reconfigure` |

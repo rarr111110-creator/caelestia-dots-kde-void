@@ -5,6 +5,9 @@
 #include <qqmllist.h>
 #include <qset.h>
 
+class QQmlEngine;
+class QJSEngine;
+
 namespace caelestia {
 
 class Toast : public QObject {
@@ -65,6 +68,9 @@ class Toaster : public QObject {
     Q_PROPERTY(QQmlListProperty<caelestia::Toast> toasts READ toasts NOTIFY toastsChanged)
 
 public:
+    static Toaster* instance();
+    static Toaster* create(QQmlEngine* engine, QJSEngine* jsEngine);
+
     explicit Toaster(QObject* parent = nullptr);
 
     [[nodiscard]] QQmlListProperty<Toast> toasts();

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "configobject.hpp"
+#include "../Settings/objectnode.hpp"
+#include "common.hpp"
 
 #include <qstring.h>
 #include <qstringlist.h>
@@ -9,10 +10,10 @@
 namespace caelestia::config {
 
 using Qt::StringLiterals::operator""_s;
+using settings::vmap;
 
-class LauncherUseFuzzy : public ConfigObject {
-    Q_OBJECT
-    QML_ANONYMOUS
+class LauncherUseFuzzy : public settings::ObjectNode {
+    CONFIG_NODE(LauncherUseFuzzy, settings::ObjectNode)
 
     CONFIG_GLOBAL_PROPERTY(bool, apps, false)
     CONFIG_GLOBAL_PROPERTY(bool, actions, false)
@@ -22,14 +23,10 @@ class LauncherUseFuzzy : public ConfigObject {
     CONFIG_GLOBAL_PROPERTY(bool, emoji, false)
     CONFIG_GLOBAL_PROPERTY(bool, clipboard, false)
 
-public:
-    explicit LauncherUseFuzzy(QObject* parent = nullptr)
-        : ConfigObject(parent) {}
 };
 
-class LauncherConfig : public ConfigObject {
-    Q_OBJECT
-    QML_ANONYMOUS
+class LauncherConfig : public settings::ObjectNode {
+    CONFIG_NODE(LauncherConfig, settings::ObjectNode)
 
     CONFIG_PROPERTY(bool, enabled, true)
     CONFIG_PROPERTY(bool, showOnHover, false)
@@ -41,17 +38,18 @@ class LauncherConfig : public ConfigObject {
     CONFIG_GLOBAL_PROPERTY(bool, enableDangerousActions, false)
     CONFIG_PROPERTY(int, dragThreshold, 50)
     CONFIG_PROPERTY(bool, showPowerMenu, true)
+    CONFIG_PROPERTY(bool, showBrowseOnEmpty, true)
     CONFIG_PROPERTY(int, hoverThickness, 10)
     CONFIG_PROPERTY(int, hoverWidth, 50)
     CONFIG_GLOBAL_PROPERTY(bool, vimKeybinds, false)
     CONFIG_GLOBAL_PROPERTY(bool, confirmClearClipboard, true)
     CONFIG_GLOBAL_PROPERTY(QStringList, favouriteApps, QStringList({ u"firefox"_s, u"org.kde.dolphin"_s }))
-    CONFIG_GLOBAL_PROPERTY(QStringList, hiddenApps)
-    CONFIG_GLOBAL_PROPERTY(QStringList, favouriteEmojis)
-    CONFIG_GLOBAL_PROPERTY(QStringList, favouriteClips)
+    CONFIG_GLOBAL_PROPERTY(QStringList, hiddenApps, QStringList())
+    CONFIG_GLOBAL_PROPERTY(QStringList, favouriteEmojis, QStringList())
+    CONFIG_GLOBAL_PROPERTY(QStringList, favouriteClips, QStringList())
     CONFIG_SUBOBJECT(LauncherUseFuzzy, useFuzzy)
     CONFIG_GLOBAL_PROPERTY(QVariantList, actions,
-        {
+        DEFAULT_ARG({
             vmap({
                 { u"name"_s, u"Calculator"_s },
                 { u"icon"_s, u"calculate"_s },
@@ -164,12 +162,8 @@ class LauncherConfig : public ConfigObject {
                 { u"description"_s, u"Switch your animation style"_s },
                 { u"command"_s, QStringList{ u"autocomplete"_s, u"animations"_s } },
             }),
-        })
+        }))
 
-public:
-    explicit LauncherConfig(QObject* parent = nullptr)
-        : ConfigObject(parent)
-        , m_useFuzzy(new LauncherUseFuzzy(this)) {}
 };
 
 } // namespace caelestia::config

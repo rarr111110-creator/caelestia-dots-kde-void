@@ -1,4 +1,3 @@
-import org.kde.pipewire as Pipewire
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -7,6 +6,7 @@ import Quickshell.Services.Mpris
 import Caelestia.Config
 import Caelestia.Services
 import qs.components
+import qs.components.images
 import qs.services
 import qs.utils
 
@@ -22,12 +22,10 @@ StyledRect {
         if (!model) return null;
         return Players.list.find(p => p.identity.toLowerCase().includes(model.appClass.toLowerCase()) || (model.id && p.identity.toLowerCase().includes(model.id.toLowerCase().replace(".desktop", "")))) || null;
     }
-    readonly property real masterScale: !isNaN(GlobalConfig.bar.previewScale) ? GlobalConfig.bar.previewScale : 1.0
-    readonly property real elementOffset: GlobalConfig.bar.perElementPreviewScale ? (!isNaN(GlobalConfig.bar.previewScales.dock) ? GlobalConfig.bar.previewScales.dock : 0.0) : 0.0
-    readonly property real barScaleOffset: GlobalConfig.bar.previewScaleWithBar ? (!isNaN(GlobalConfig.bar.scale) ? GlobalConfig.bar.scale : 1.0) : 1.0
-    readonly property real scaleOffset: Math.max(0.1, (masterScale + elementOffset) * barScaleOffset)
-    readonly property real elementFontOffset: GlobalConfig.bar.perElementFontScale ? (!isNaN(GlobalConfig.bar.previewFontScales.dock) ? GlobalConfig.bar.previewFontScales.dock : 0.0) : 0.0
-    readonly property real fontScale: Math.max(0.1, scaleOffset + (!isNaN(GlobalConfig.bar.fontScaleOffset) ? GlobalConfig.bar.fontScaleOffset : 0.0) + elementFontOffset)
+    // Injected by Content.qml's Popout.
+    property real scaleOffset: 1.0
+    property real fontScale: 1.0
+    property bool _isSidebarOpen: false
     readonly property int previewWidth: Math.round(Tokens.sizes.bar.windowPreviewSize * scaleOffset)
     readonly property int cardWidth: (root.model && root.model.toplevels && root.model.toplevels.length > 1) ? Math.round(previewWidth * 0.55) : previewWidth
     // root.model is a snapshot taken when the popout opened, not a live binding, so
@@ -95,9 +93,8 @@ StyledRect {
                         const subCmd = root.model.entry.runInTerminal
                             ? [...GlobalConfig.general.apps.terminal, `${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...root.model.entry.command]
                             : root.model.entry.command;
-                        const finalCmd = GlobalConfig.services.useSystemd ? ["app2unit", "--", ...subCmd] : subCmd;
                         Quickshell.execDetached({
-                            command: finalCmd,
+                            command: Launch.wrap(subCmd),
                             workingDirectory: root.model.entry.workingDirectory
                         });
                     }
@@ -188,50 +185,16 @@ StyledRect {
                         StyledClippingRect {
                             id: thumb
 
-                            property var streamRequest: null
-                            readonly property int screencastSerial: streamRequest ? (streamRequest.objectSerial || streamRequest.nodeId) : 0
-
                             color: Colours.tPalette.m3surfaceContainerHighest
                             radius: Tokens.rounding.small
-                            // Deferred out of incubation: see ScreencastManager.
-                            Component.onCompleted: Qt.callLater(function () {
-                                if (card.modelData?.address)
-                                    thumb.streamRequest = ScreencastManager.requestStream(card.modelData.address);
-                            })
-                            Component.onDestruction: {
-                                if (card.modelData.address) {
-                                    ScreencastManager.releaseStream(card.modelData.address);
-                                }
+
+                            WindowPreview {
+                                anchors.fill: parent
+                                address: card.modelData?.address ?? ""
+                                fallbackIcon: root.iconSource
+                                sourceAspect: card.windowAspect
                             }
 
-                            IconImage {
-                                anchors.centerIn: parent
-                                implicitSize: thumb.height * 0.5
-                                asynchronous: true
-                                visible: thumb.screencastSerial === 0
-                                source: root.iconSource
-                            }
-                            Pipewire.PipeWireSourceItem {
-                                width: {
-                                    const wAspect = card.windowAspect;
-                                    const containerAspect = thumb.width / Math.max(1, thumb.height);
-                                    return (wAspect > containerAspect) ? thumb.width : thumb.height * wAspect;
-                                }
-                                height: {
-                                    const wAspect = card.windowAspect;
-                                    const containerAspect = thumb.width / Math.max(1, thumb.height);
-                                    return (wAspect > containerAspect) ? thumb.width / wAspect : thumb.height;
-                                }
-                                anchors.centerIn: parent
-                                visible: thumb.screencastSerial !== 0
-                                Component.onCompleted: {
-                                    if ("objectSerial" in this) {
-                                        this.objectSerial = Qt.binding(() => thumb.streamRequest ? thumb.streamRequest.objectSerial : 0)
-                                    } else if ("nodeId" in this) {
-                                        this.nodeId = Qt.binding(() => thumb.streamRequest ? thumb.streamRequest.nodeId : 0)
-                                    }
-                                }
-                            }
                             // Close button - only revealed while hovering this thumbnail
                             StyledRect {
                                 anchors.top: parent.top

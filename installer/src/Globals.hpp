@@ -17,7 +17,7 @@ extern int g_term_width;
 extern int g_term_height;
 extern std::string g_base_distro;
 extern std::string g_bundle_dir;
-extern bool g_confirm_arg;
+extern std::string g_sudo_bin_dir;
 
 void load_bundle_dir();
 void load_theme();

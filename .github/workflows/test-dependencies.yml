@@ -65,9 +65,9 @@ jobs:
             exit 1
           fi
 
-  test-debian:
+  test-ubuntu:
     runs-on: ubuntu-latest
-    container: debian:latest
+    container: ubuntu:latest
     strategy:
       matrix:
         branch: [main, dev]
@@ -76,14 +76,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ matrix.branch }}
-      - name: Prepare Debian
-        run: apt-get update && apt-get install -y git sudo curl
-      - name: Verify Debian Dependencies
+      - name: Prepare Ubuntu
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y git sudo curl unzip fontconfig tzdata software-properties-common
+      - name: Verify Ubuntu Dependencies
         run: |
           ./sdata/debian-dist/installDP_debian.sh || true
           if [ -s ~/.cache/caelestia-kde/failed_packages.txt ]; then
             FAILED=$(cat ~/.cache/caelestia-kde/failed_packages.txt | tr '\n' ' ')
-            echo "::error::[DEBIAN] Failed to install packages: $FAILED"
+            echo "::error::[UBUNTU] Failed to install packages: $FAILED"
             exit 1
           fi
 

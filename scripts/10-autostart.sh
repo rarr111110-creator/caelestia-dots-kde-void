@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
+
 # Resolve the bundle root the same way the build script does, so this works
 # whether the installer exports it or the script is run directly.
 BUNDLE_DIR="${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -14,15 +16,13 @@ mkdir -p "$HOME/.local/bin"
 
 echo
 echo ""
-echo "  Step 10/11  Autostart Setup"
+info "Setting up autostart entries"
 echo ""
 
 SHELL_CONFIG="$HOME/.config/quickshell/caelestia/shell.qml"
 
 if [[ ! -f "$SHELL_CONFIG" ]]; then
-    echo "  [ERR]  Caelestia Shell entrypoint not found: $SHELL_CONFIG" >&2
-    echo "         Run scripts/08-build-shell.sh before configuring autostart." >&2
-    exit 1
+    die "Caelestia Shell entrypoint not found: $SHELL_CONFIG (run scripts/08-build-shell.sh first)"
 fi
 
 # Determine the path of quickshell to avoid PATH differences at login.
@@ -35,8 +35,7 @@ elif [ -x "/usr/bin/quickshell" ]; then
 elif [ -x "/usr/local/bin/quickshell" ]; then
     QUICKSHELL_PATH="/usr/local/bin/quickshell"
 else
-    echo "  [ERR]  Quickshell is not installed or is not available in PATH." >&2
-    exit 127
+    die "Quickshell is not installed or is not available in PATH."
 fi
 
 # Caelestia Shell autostart
@@ -45,20 +44,45 @@ fi
 echo "  Creating Caelestia Shell autostart entry..."
 cat > "$HOME/.local/bin/caelestia-autostart.sh" << EOF
 #!/bin/bash
-export QML2_IMPORT_PATH="\$HOME/.local/lib/qt6/qml"
+export QML2_IMPORT_PATH="\$HOME/.local/lib/qt6/qml:\$HOME/.config/quickshell/caelestia"
 export CAELESTIA_LIB_DIR="\$HOME/.local/lib/caelestia"
 export QS_NO_RELOAD_POPUP=1
 export QS_DROP_EXPENSIVE_FONTS=1
 export QS_DISABLE_CRASH_HANDLER=1
 export QSG_RENDER_LOOP=threaded
 export QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
-# stdbuf forces line-buffered stdout/stderr; without it, glibc fully-buffers
-# output when it isn't attached to a TTY (e.g. when captured by journald via
-# systemd), so qDebug/qWarning messages can sit unflushed indefinitely.
-exec stdbuf -oL -eL "$QUICKSHELL_PATH" -d -n -p "\$HOME/.config/quickshell/caelestia/shell.qml"
+# Self-heal Caelestia lock screen if KDE updates or kconf_update reset it
+if [ -f "\$HOME/.local/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreen.qml" ] || [ -f "/usr/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreen.qml" ]; then
+    if command -v kreadconfig6 >/dev/null 2>&1 && command -v kwriteconfig6 >/dev/null 2>&1; then
+        current_shell="\$(kreadconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" 2>/dev/null || true)"
+        if [ "\$current_shell" != "caelestia.desktop" ]; then
+            kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop" 2>/dev/null || true
+        fi
+        kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" --delete 2>/dev/null || true
+    fi
+fi
+# No --daemonize: the autostart entry already runs under a systemd user unit,
+# which supervises the process and connects its stdout/stderr to the journal.
+# Detaching would replace that with /dev/null, and every application launched
+# from the shell inherits those descriptors - which is how the shell was
+# handing apps a stdout that goes nowhere. Vesktop deadlocks in exactly that
+# state when a call starts (issue #402); reproducible outside the shell with
+# `vesktop >/dev/null 2>&1`.
+#
+# Dropping it also makes the old stdbuf wrapper unnecessary: journald stdio is
+# what the line-buffering hack was working around, and stdbuf leaked
+# LD_PRELOAD=libstdbuf.so into every launched app on top of that.
+exec "$QUICKSHELL_PATH" -n -p "\$HOME/.config/quickshell/caelestia/shell.qml"
 EOF
 chmod +x "$HOME/.local/bin/caelestia-autostart.sh"
 
+# Phase 1 (DesktopServices), not 2 (Applications). The shell registers
+# org.freedesktop.Notifications, and applications decide once, when they start,
+# whether a notification server exists -- one that finds none draws its own
+# popups for the rest of the session, in its own corner, ignoring every setting
+# here. In phase 2 the shell starts alongside the user's autostarted apps with
+# no ordering between them, so which apps end up talking to it is a coin toss
+# per login. Phase 1 finishes before any of them begin.
 cat > "$AUTOSTART_DIR/caelestiashell.desktop" << EOF
 [Desktop Entry]
 Type=Application
@@ -69,10 +93,10 @@ Icon=quickshell
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
-X-KDE-AutostartPhase=2
+X-KDE-AutostartPhase=1
 X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1
 EOF
-echo "  [OK]  Quickshell autostart created."
+ok "Quickshell autostart created."
 
 # KWin restricts privileged Wayland protocols (like zkde_screencast_unstable_v1,
 # used for live window thumbnails). For every such protocol, KWin's
@@ -104,7 +128,7 @@ if command -v kbuildsycoca6 >/dev/null 2>&1; then
 elif command -v kbuildsycoca5 >/dev/null 2>&1; then
     kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
 fi
-echo "  [OK]  Quickshell Wayland interface declaration created."
+ok "Quickshell Wayland interface declaration created."
 
 #  kde-material-you-colors background service
 # Creates and enables a systemd user service for kde-material-you-colors on
@@ -147,6 +171,7 @@ RestartSec=3
 WantedBy=graphical-session.target
 EOF
 
+<<<<<<< HEAD
         systemctl --user daemon-reload
         systemctl --user enable --now kde-material-you-colors.service 2>/dev/null || true
         echo "  [OK]  kde-material-you-colors systemd service enabled."
@@ -167,6 +192,13 @@ EOF
     fi
 else
     echo "  [SKIP] Skipping kde-material-you-colors background service."
+=======
+    systemctl --user daemon-reload
+    systemctl --user enable --now kde-material-you-colors.service 2>/dev/null || true
+    ok "kde-material-you-colors systemd service enabled."
+else
+    skip "Skipping kde-material-you-colors systemd service."
+>>>>>>> upstream/main
 fi
 
 # Live window thumbnails.
@@ -193,4 +225,4 @@ if [[ -f "$BUNDLE_DIR/assets/org.quickshell.desktop" ]]; then
     echo "  [OK]  Window preview interface requested."
 fi
 
-echo "[OK]  Autostart entries configured."
+ok "Autostart entries configured."

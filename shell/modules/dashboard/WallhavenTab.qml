@@ -148,57 +148,45 @@ Item {
                 }
 
                 // Search bar
-                StyledRect {
+                RowLayout {
                     Layout.fillWidth: true
+                    spacing: Tokens.spacing.small
 
-                    color: Colours.layer(Colours.palette.m3surfaceContainer, 2)
-                    radius: Tokens.rounding.full
+                    SearchBar {
+                        id: searchField
 
-                    implicitHeight: searchField.implicitHeight + Tokens.padding.medium * 2
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("Search wallpapers...")
+                        bg.color: Colours.tPalette.m3surfaceContainerLowest
+                        bg.border.color: Colours.palette.m3outlineVariant
+                        searchIcon.fontStyle: Tokens.font.icon.medium
+                        clearIcon.visible: false
+                        onTextChanged: root.searchQuery = text
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: Tokens.padding.medium
-                        anchors.rightMargin: Tokens.padding.medium
-                        spacing: Tokens.spacing.small
-
-                        MaterialIcon {
-                            text: "search"
-                            color: Colours.palette.m3onSurfaceVariant
-                        }
-
-                        StyledTextField {
-                            id: searchField
-
-                            Layout.fillWidth: true
-                            placeholderText: qsTr("Search wallpapers...")
-                            onTextChanged: root.searchQuery = text
-
-                            Keys.onReturnPressed: {
-                                if (root.searchQuery.trim()) {
-                                    root.isLoading = true;
-                                    WallhavenSearcher.search(root.searchQuery);
-                                }
+                        Keys.onReturnPressed: {
+                            if (root.searchQuery.trim()) {
+                                root.isLoading = true;
+                                WallhavenSearcher.search(root.searchQuery);
                             }
                         }
+                    }
 
-                        IconButton {
-                            icon: "north"
-                            onClicked: {
-                                if (root.searchQuery.trim()) {
-                                    root.isLoading = true;
-                                    WallhavenSearcher.searchRandom(root.searchQuery);
-                                }
+                    IconButton {
+                        icon: "north"
+                        onClicked: {
+                            if (root.searchQuery.trim()) {
+                                root.isLoading = true;
+                                WallhavenSearcher.searchRandom(root.searchQuery);
                             }
                         }
+                    }
 
-                        IconButton {
-                            icon: "refresh"
-                            onClicked: {
-                                if (root.searchQuery.trim()) {
-                                    root.isLoading = true;
-                                    WallhavenSearcher.search(root.searchQuery);
-                                }
+                    IconButton {
+                        icon: "refresh"
+                        onClicked: {
+                            if (root.searchQuery.trim()) {
+                                root.isLoading = true;
+                                WallhavenSearcher.search(root.searchQuery);
                             }
                         }
                     }

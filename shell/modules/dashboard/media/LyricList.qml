@@ -210,7 +210,7 @@ Item {
 
             StyledText {
                 text: qsTr("Loading lyrics...")
-                color: Colours.palette.m3onSurfaceVariant
+                color: Colours.palette.m3outline
                 font: Tokens.font.title.medium
             }
         }
@@ -237,12 +237,12 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 text: "sentiment_sad"
                 fontStyle: Tokens.font.icon.builders.large.scale(2).build()
-                color: Colours.palette.m3onSurfaceVariant
+                color: Colours.palette.m3outline
             }
 
             StyledText {
                 text: qsTr("No lyrics found")
-                color: Colours.palette.m3onSurfaceVariant
+                color: Colours.palette.m3outline
                 font: Tokens.font.title.medium
             }
         }

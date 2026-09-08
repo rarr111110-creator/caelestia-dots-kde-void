@@ -35,7 +35,12 @@ Singleton {
     }
 
     function launchSpectacle(): void {
-        Quickshell.execDetached(["spectacle", "-R", "r"]);
+        Launch.exec(["spectacle", "-R", "r"]);
+    }
+
+    // Forces a fresh probe of gpu-screen-recorder; `running` updates on exit.
+    function probeRecording(): void {
+        if (!checkProc.running) checkProc.running = true;
     }
 
     PersistentProperties {
@@ -67,13 +72,13 @@ Singleton {
 
             if (isRunning) {
                 if (root.needsStop) {
-                    Quickshell.execDetached([root.recordBin, "--stop"]);
+                    Launch.exec([root.recordBin, "--stop"]);
                 } else if (root.needsPause) {
-                    Quickshell.execDetached([root.recordBin, "--pause"]);
+                    Launch.exec([root.recordBin, "--pause"]);
                     props.paused = !props.paused;
                 }
             } else if (root.needsStart) {
-                Quickshell.execDetached([root.recordBin, ...root.startArgs]);
+                Launch.exec([root.recordBin, ...root.startArgs]);
             }
 
             root.needsStart = false;

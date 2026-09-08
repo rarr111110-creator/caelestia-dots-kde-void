@@ -5,6 +5,7 @@ import Quickshell
 import Caelestia.Config
 import qs.components.controls as Controls
 import qs.services
+import qs.utils
 import qs.modules.nexus
 
 Controls.Menu {
@@ -55,17 +56,17 @@ Controls.Menu {
                     GlobalConfig.save();
                 } else if (entry.action === "OpenRightClickMenu") {
                     WindowFactory.create(null, {
-                        initialPageIdx: 1, // Desktop
+                        initialPageIdx: PageRegistry.indexForKey("desktop"), // Desktop
                         initialSubPageIdx: 2 // Right Click Menu is index 2
                     });
                 } else if (entry.action === "OpenTerminal") {
-                    Quickshell.execDetached([...GlobalConfig.general.apps.terminal]);
+                    Launch.exec([...GlobalConfig.general.apps.terminal]);
                 }
             } else if (entry.command) {
                 if (entry.command === "terminal") {
-                    Quickshell.execDetached([...GlobalConfig.general.apps.terminal]);
+                    Launch.exec([...GlobalConfig.general.apps.terminal]);
                 } else {
-                    Quickshell.execDetached(typeof entry.command === "string" ? entry.command.split(" ") : entry.command);
+                    Launch.exec(typeof entry.command === "string" ? entry.command.split(" ") : entry.command);
                 }
             }
         };

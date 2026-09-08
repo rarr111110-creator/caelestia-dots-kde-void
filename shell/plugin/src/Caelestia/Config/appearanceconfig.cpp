@@ -156,6 +156,46 @@ void FontStyleConfig::setDefaultFamily(const QString& family) {
     m_family = family;
 }
 
+// AppearanceFont
+
+void AppearanceFont::bindFont() {
+    const auto sans = QStringLiteral("SF Pro");
+    const auto mono = QStringLiteral("SF Mono");
+    const auto icons = QStringLiteral("Material Symbols Rounded");
+    const QVariantMap vaxes = { { "ROND", 25 } };
+
+    m_headline->setDefaultFamily(sans);
+    m_headline->large()->setDefaults(32, QFont::Medium, vaxes);
+    m_headline->medium()->setDefaults(28, QFont::Medium, vaxes);
+    m_headline->small()->setDefaults(24, QFont::Medium, vaxes);
+
+    m_title->setDefaultFamily(sans);
+    m_title->large()->setDefaults(22, QFont::Medium, vaxes);
+    m_title->medium()->setDefaults(16, QFont::Medium, vaxes);
+    m_title->small()->setDefaults(14, QFont::Medium, vaxes);
+
+    m_body->setDefaultFamily(sans);
+    m_body->large()->setDefaults(16, QFont::Normal, vaxes);
+    m_body->medium()->setDefaults(14, QFont::Normal, vaxes);
+    m_body->small()->setDefaults(12, QFont::Normal, vaxes);
+
+    m_label->setDefaultFamily(sans);
+    m_label->large()->setDefaults(14, QFont::Medium, vaxes);
+    m_label->medium()->setDefaults(12, QFont::Medium, vaxes);
+    m_label->small()->setDefaults(11, QFont::Normal, vaxes);
+
+    m_mono->setDefaultFamily(mono);
+    m_mono->large()->setDefaults(16, QFont::Normal);
+    m_mono->medium()->setDefaults(14, QFont::Normal);
+    m_mono->small()->setDefaults(12, QFont::Normal);
+
+    m_icon->setDefaultFamily(icons);
+    m_icon->extraLarge()->setDefaults(static_cast<int>(48 / 1.33), QFont::Normal);
+    m_icon->large()->setDefaults(static_cast<int>(32 / 1.33), QFont::Normal);
+    m_icon->medium()->setDefaults(static_cast<int>(24 / 1.33), QFont::Normal);
+    m_icon->small()->setDefaults(static_cast<int>(20 / 1.33), QFont::Normal);
+}
+
 // AnimDurations
 
 void AnimDurations::bindTokens(AnimDurationTokens* tokens) {

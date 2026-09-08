@@ -107,7 +107,9 @@ def parse_headers() -> tuple[dict[str, dict[str, str]], dict[str, str]]:
                 root_props["screen"] = LEAF
 
     # GlobalConfig (singleton) sub-objects + its own config properties.
-    globals_cls = class_members.get("GlobalConfig", {})
+    # The singleton is ConfigSingleton (QML_NAMED_ELEMENT GlobalConfig), which
+    # wraps ConfigRoot - so the root node's members are the singleton's members.
+    globals_cls = class_members.get("ConfigRoot", {})
     root_props.update(globals_cls)
     for method in ROOT_METHODS:
         root_props.setdefault(method, METHOD)

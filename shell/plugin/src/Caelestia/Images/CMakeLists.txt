@@ -7,6 +7,8 @@ qml_module(caelestia-images
         imagecacher.hpp
         iutils.cpp
         iutils.hpp
+        imageanalyser.cpp
+        imageanalyser.hpp
     LIBRARIES
         Qt::Gui
         Qt::Quick

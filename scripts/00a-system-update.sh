@@ -3,8 +3,10 @@
 
 set -euo pipefail
 
+source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
+
 if [[ "${SKIP_SYSTEM_UPDATE:-false}" == "true" ]]; then
-    echo "[INFO]  Skipping full system update (SKIP_SYSTEM_UPDATE=true)."
+    info "Skipping full system update (SKIP_SYSTEM_UPDATE=true)."
     exit 0
 fi
 
@@ -34,5 +36,5 @@ elif [[ "${BASE_DISTRO:-unknown}" == "void" ]]; then
         sudo xbps-install -S && sudo xbps-install -u
     fi
 else
-    echo "[WARN] Distro not set properly, skipping system update."
+    warn "Distro not set properly, skipping system update."
 fi

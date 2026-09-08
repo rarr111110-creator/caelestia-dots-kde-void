@@ -1,5 +1,5 @@
 #include "keybindsmodel.hpp"
-#include "../Config/config.hpp"
+#include "../Config/rootnodes.hpp"
 #include "../Config/generalconfig.hpp"
 #include "../Config/keybindsdefaults.hpp"
 
@@ -28,7 +28,7 @@ KeybindsModel::KeybindsModel(QObject* parent)
 
     // Start with defaults
     QJsonObject defaults = caelestia::config::defaultKeybinds();
-    bool krohnkiteEnabled = caelestia::config::GlobalConfig::instance()->general()->krohnkiteEnabled();
+    bool krohnkiteEnabled = caelestia::config::ConfigSingleton::instance()->general()->krohnkiteEnabled();
 
     for (auto it = defaults.begin(); it != defaults.end(); ++it) {
         if (it.key().startsWith("krohnkite") && !krohnkiteEnabled) {

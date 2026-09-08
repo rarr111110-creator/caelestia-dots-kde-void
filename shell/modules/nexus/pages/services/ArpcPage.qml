@@ -151,7 +151,7 @@ PageBase {
                         anchors.leftMargin: Tokens.padding.medium
                         anchors.rightMargin: Tokens.padding.medium
                         verticalAlignment: TextInput.AlignVCenter
-                        placeholderText: "API Key..."
+                        placeholderText: qsTr("API Key...")
                         echoMode: TextInput.Password
                         passwordCharacter: "•"
                         onAccepted: root.saveToken(text)
@@ -293,7 +293,7 @@ PageBase {
                             Layout.leftMargin: Math.round(Tokens.font.icon.large.pointSize * 1.5) + Tokens.spacing.medium
                             Layout.preferredHeight: 24
 
-                            placeholderText: qsTr("Custom label (optional) — use {class}, {title}")
+                            placeholderText: qsTr("Custom label (optional) - use {class}, {title}")
                             font: Tokens.font.label.small
                             verticalAlignment: TextInput.AlignVCenter
 
@@ -536,7 +536,7 @@ PageBase {
                     IconTextButton {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Save presence"
+                        text: qsTr("Save presence")
                         icon: "save"
                         type: TextButton.Filled
                         onClicked: {

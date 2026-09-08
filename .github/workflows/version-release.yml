@@ -6,12 +6,13 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: version-release
+  cancel-in-progress: true
+
 jobs:
   version-release:
     runs-on: ubuntu-latest
-    concurrency:
-      group: version-release
-      cancel-in-progress: true
     permissions:
       contents: write
 
@@ -180,3 +181,144 @@ jobs:
             --head main \
             --title "chore: sync main back to dev after $VERSION" \
             --body "This is an automated PR to sync the newly updated contributor stats and release tags from \`main\` back into \`dev\`." || true
+
+  # ═══════════════════════════════════════════════════════════
+  # Precompile the Caelestia shell (the C++ QML plugin modules and
+  # M3Shapes) and bundle them with the shell QML source, so a fresh
+  # install can download the compiled .so files instead of building
+  # Qt6/C++ on the user's machine. Attached to the version release.
+  #
+  # Built against Arch's Qt/KF. The asset name embeds the Qt feature
+  # version, so a machine on a different Qt misses the asset and falls
+  # back to a local build. The KWin effect is deliberately excluded:
+  # it links KWin::kwin, whose ABI is Plasma-version-specific, so it
+  # stays a local build (see 08-build-shell.sh).
+  # ═══════════════════════════════════════════════════════════
+  build-shell:
+    name: Precompile shell artifacts (x86_64)
+    needs: version-release
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Shell Build Dependencies
+        run: |
+          set -euo pipefail
+          pacman -Syu --noconfirm --needed git github-cli cmake ninja meson autoconf-archive \
+            qt6-base qt6-declarative qt6-shadertools qt6-wayland qt6-tools \
+            kwindowsystem kguiaddons kglobalaccel kconfig networkmanager-qt pulseaudio-qt \
+            libqalculate pipewire libpipewire aubio lm_sensors extra-cmake-modules \
+            fftw ncurses alsa-lib iniparser libglvnd sdl2 portaudio sndio libpulse
+
+      # Arch's `cava` package only ships the CLI binary, not the shared
+      # library/headers the shell links against (see shell/plugin/CMakeLists.txt).
+      # Build `libcava` from AUR instead so pkg-config/find_library actually
+      # picks it up and the audio visualizer is compiled into the release asset.
+      - name: Build and Install libcava (AUR)
+        run: |
+          set -euo pipefail
+          useradd -m builder
+          su builder -c '
+            set -euo pipefail
+            git clone --depth 1 https://aur.archlinux.org/libcava.git /tmp/libcava
+            cd /tmp/libcava
+            makepkg --noconfirm
+          '
+          pacman -U --noconfirm /tmp/libcava/libcava-*.pkg.tar.zst
+
+      - name: Load Release Tag
+        run: |
+          set -euo pipefail
+          source .github/version.env
+          echo "TAG=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Configure Shell
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -B shell/build -S shell -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DINSTALL_QSCONFDIR=etc/xdg/quickshell/caelestia \
+            -DINSTALL_LIBDIR=lib/caelestia \
+            -DINSTALL_QMLDIR=lib/qt6/qml
+
+      - name: Build Shell
+        run: |
+          set -euo pipefail
+          cmake --build shell/build -j"$(nproc)"
+
+      - name: Stage Compiled Artifacts
+        run: |
+          set -euo pipefail
+          QT_ABI="$(pkg-config --modversion Qt6Core | grep -oE '^[0-9]+\.[0-9]+')"
+          DESTDIR="$PWD/stage" cmake --install shell/build
+          mkdir -p dist/root/lib/qt6/qml dist/root/lib/caelestia dist/root/quickshell
+          cp -a stage/usr/lib/qt6/qml/Caelestia stage/usr/lib/qt6/qml/M3Shapes dist/root/lib/qt6/qml/
+          cp -a stage/usr/lib/caelestia/version dist/root/lib/caelestia/
+          cp -a stage/usr/etc/xdg/quickshell/caelestia dist/root/quickshell/
+          tar -C dist/root -czf "dist/caelestia-shell-x86_64-qt${QT_ABI}.tar.gz" lib quickshell
+          echo "ARTIFACT=dist/caelestia-shell-x86_64-qt${QT_ABI}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Attach Shell Artifacts to Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # --repo: this job runs in a container where gh's git-based repo
+          # auto-detection fails ("failed to run git: not a git repository"),
+          # so name the repo explicitly instead of relying on local git state.
+          gh release upload "$TAG" "$ARTIFACT" --repo "$GITHUB_REPOSITORY" --clobber
+
+  # ═══════════════════════════════════════════════════════════
+  # Prebuilt installer TUI binaries (x86_64 + aarch64) so setup.sh
+  # can download instead of compiling the TUI on the user's machine.
+  # These are versioned executables, so they belong on the version
+  # release.
+  # ═══════════════════════════════════════════════════════════
+  build-installer:
+    name: Build installer TUI (${{ matrix.arch }})
+    needs: version-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake g++ make
+
+      - name: Load Release Tag
+        run: |
+          set -euo pipefail
+          source .github/version.env
+          echo "TAG=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build Installer TUI
+        run: |
+          set -euo pipefail
+          cmake -B installer/build -DCMAKE_BUILD_TYPE=Release installer
+          cmake --build installer/build -- -j"$(nproc)"
+
+      - name: Attach Prebuilt Installer to Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TUI_VERSION="$(tr -d '[:space:]' < installer/tui.version)"
+          cp installer/build/caelestia-install "caelestia-install-${{ matrix.arch }}-v${TUI_VERSION}"
+          gh release upload "$TAG" "caelestia-install-${{ matrix.arch }}-v${TUI_VERSION}" --repo "$GITHUB_REPOSITORY" --clobber

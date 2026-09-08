@@ -150,7 +150,29 @@ jobs:
         run: python3 .github/scripts/check_qml_conventions.py
 
   # ═══════════════════════════════════════════════════════════
-  # Job 7: Embedded bash - syntax-check bash/sh inside QML Process commands
+  # Job 7: QML structural syntax - brace balance + top-level component
+  # ═══════════════════════════════════════════════════════════
+  # A QML syntax error (an inline `component` declared at the top level, or an
+  # unbalanced brace) makes the whole shell fail to load, and the error
+  # cascades through the module tree so the reported file is not the real
+  # cause. qmllint can't resolve Quickshell's qs.* imports, so this does a
+  # lightweight structural parse instead.
+  qml-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Check QML structural syntax
+        run: python3 .github/scripts/check_qml_syntax.py --source-root shell
+
+  # ═══════════════════════════════════════════════════════════
+  # Job 8: Embedded bash - syntax-check bash/sh inside QML Process commands
   # ═══════════════════════════════════════════════════════════
   # Quickshell runs `command: ["bash", "-c", `<script>`]` strings that qmllint
   # and shellcheck never see; a typo there only surfaces at runtime.
@@ -169,7 +191,7 @@ jobs:
         run: python3 .github/scripts/check_embedded_bash.py
 
   # ═══════════════════════════════════════════════════════════
-  # Job 8: Config cross-reference - QML config keys vs C++ declarations
+  # Job 9: Config cross-reference - QML config keys vs C++ declarations
   # ═══════════════════════════════════════════════════════════
   # Catches Config./GlobalConfig. references that don't exist in the plugin's
   # CONFIG_PROPERTY declarations (renamed keys, typos) - the shell logs
@@ -189,7 +211,7 @@ jobs:
         run: python3 .github/scripts/check_config_references.py
 
   # ═══════════════════════════════════════════════════════════
-  # Job 9: actionlint - validate workflow files themselves
+  # Job 10: actionlint - validate workflow files themselves
   # ═══════════════════════════════════════════════════════════
   # Catches malformed ${{ }} expressions, bad `on:` keys, wrong permission
   # scopes, etc. that a plain YAML parse cannot.

@@ -2,6 +2,7 @@ pragma Singleton
 
 import Quickshell
 import Caelestia
+import Caelestia.Models
 import Caelestia.Config
 import qs.utils
 
@@ -10,14 +11,16 @@ Searcher {
 
     function launch(entry: DesktopEntry): void {
         appDb.incrementFrequency(entry.id);
+        Launch.launchEntry(entry);
+    }
 
-        if (entry.runInTerminal)
-            Quickshell.execDetached({
-                command: [...GlobalConfig.general.apps.terminal, `${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...entry.command],
-                workingDirectory: entry.workingDirectory
-            });
-        else
-            entry.execute();
+    /// Every visible desktop entry in AppDb order (favourites, then frequency, then name).
+    function allApps(): list<var> {
+        const res = [];
+        const apps = appDb.apps;
+        for (let i = 0; i < apps.length; i++)
+            res.push(apps[i].entry);
+        return res;
     }
 
     function search(search: string): list<var> {

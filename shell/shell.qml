@@ -13,23 +13,33 @@ import "services" as Services
 import "modules"
 import "modules/drawers"
 import "modules/background"
-import "modules/shimeji"
 import "modules/areapicker"
 import "modules/lock"
 import "modules/polkit"
 import "modules/screenshot/regionSelector"
 import "modules/overview"
 import "modules/welcome" as Welcome
+import qs.services.api
+import QtQuick
 import QtQml
 import Quickshell
 import Quickshell.Io
+import Caelestia
 import Caelestia.Config
 import qs.components.containers
 import qs.services
 import qs.utils
 
 ShellRoot {
+    id: root
+
     settings.watchFiles: false
+
+    Binding {
+        target: ShellState
+        property: "shellRoot"
+        value: root
+    }
 
     // Several QtCore.Settings {} elements throughout the codebase (BlurOffsets,
     // ContentWindow, UpdateChecker) rely on QCoreApplication's organization/app
@@ -48,7 +58,25 @@ ShellRoot {
         return true;
     })()
 
+    // UI translations. The catalogues live next to the shell (shell/translations,
+    // installed as <shell>/translations/caelestia_<code>.qm), so resolving the
+    // path relative to this file works both from the install tree and when
+    // running the shell straight from a checkout.
+    Binding {
+        target: Translations
+        property: "extraSearchPaths"
+        value: [Qt.resolvedUrl("translations")]
+    }
+
+    Binding {
+        target: Translations
+        property: "language"
+        value: GlobalConfig.general.language
+    }
+
+    Fonts {}
     GSFLoader {}
+    ServiceLoader {}
 
     Background {}
     BadAppleOverlay {}
@@ -86,20 +114,13 @@ ShellRoot {
         }
     }
 
-    Variants {
-        model: Quickshell.screens.filter(s => (GlobalConfig.shimeji?.enabled ?? false) && (GlobalConfig.shimeji?.path?.length ?? 0) > 0 && !Strings.testRegexList(GlobalConfig.shimeji?.excludedScreens ?? [], s.name))
-
-        Shimeji {
-            shimejiCount: GlobalConfig.shimeji?.count ?? 1
-        }
-    }
-
     ConfigToasts {}
     Shortcuts {}
     ScreenCorners {}
 
     Component.onCompleted: {
         Qt.callLater(() => { Weather.reload(); });
+        PluginLoader.loadPlugins();
     }
 
     Services.StartupTasks {}
@@ -115,12 +136,12 @@ ShellRoot {
                 BLUR_MATCHING=$(kreadconfig6 --file kwinrc --group Effect-better-blur-dx --key BlurMatching)
                 BLUR_NON_MATCHING=$(kreadconfig6 --file kwinrc --group Effect-better-blur-dx --key BlurNonMatching)
                 WINDOW_CLASSES=$(kreadconfig6 --file kwinrc --group Effect-better-blur-dx --key WindowClasses)
-                
+
                 if [ -z "$BLUR_MATCHING" ]; then BLUR_MATCHING="true"; fi
                 if [ -z "$BLUR_NON_MATCHING" ]; then BLUR_NON_MATCHING="false"; fi
-                
+
                 MODIFIED=false
-                
+
                 if [ "$BLUR_MATCHING" = "true" ] && [ "$BLUR_NON_MATCHING" = "false" ]; then
                     if echo "$WINDOW_CLASSES" | grep -q '\\bquickshell\\b'; then
                         # Remove quickshell without destroying the rest of the line if comma-separated
@@ -130,23 +151,23 @@ ShellRoot {
                     fi
                 elif [ "$BLUR_MATCHING" = "false" ] && [ "$BLUR_NON_MATCHING" = "true" ]; then
                     if ! echo "$WINDOW_CLASSES" | grep -q '\\bquickshell\\b'; then
-                        if [ -z "$WINDOW_CLASSES" ]; then 
+                        if [ -z "$WINDOW_CLASSES" ]; then
                             NEW_CLASSES="quickshell"
                         elif echo "$WINDOW_CLASSES" | grep -q ','; then
                             NEW_CLASSES="$WINDOW_CLASSES,quickshell"
-                        else 
+                        else
                             NEW_CLASSES="$WINDOW_CLASSES"$'\n'"quickshell"
                         fi
                         kwriteconfig6 --file kwinrc --group Effect-better-blur-dx --key WindowClasses "$NEW_CLASSES"
                         MODIFIED=true
                     fi
                 fi
-                
-                if [ "$MODIFIED" = "true" ]; then 
+
+                if [ "$MODIFIED" = "true" ]; then
                     qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || true
                     qdbus6 org.kde.KWin /Effects reconfigureEffect better_blur_dx 2>/dev/null || true
                 fi
-                
+
                 echo "BBDX_ENABLED"
             fi
         `]

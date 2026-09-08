@@ -234,11 +234,10 @@ Item {
         const ch = getLoaderAt(isHorizontal ? pos : width / 2, isHorizontal ? height / 2 : pos) as WrappedLoader;
         
         if (ch?.id === "dock") {
-            let mappedChPos = mapFromItem(ch, 0, 0);
-            const top = isHorizontal ? mappedChPos.x : mappedChPos.y;
-            const relPos = pos - top;
-            const dockHit = ch.item ? ch.item.childAt(isHorizontal ? relPos : ch.width / 2, isHorizontal ? ch.height / 2 : relPos) : null;
-            if (dockHit) return;
+            if (ch.item && typeof ch.item.handleWheel === "function") {
+                ch.item.handleWheel(angleDelta);
+            }
+            return;
         }
 
         if (ch?.id === "workspaces" && Config.bar.scrollActions.workspaces) {

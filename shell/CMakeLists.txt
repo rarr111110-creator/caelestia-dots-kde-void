@@ -1,17 +1,26 @@
 cmake_minimum_required(VERSION 3.19)
 
+# The release version lives in .github/version.env - the single source of
+# truth (read by CI and the installer/updater scripts). It is loaded here so a
+# bump is a one-line change to version.env; shell/CMakeLists.txt must never
+# carry its own copy of the release number. An explicit -DVERSION=... on the
+# configure line still wins for packaging.
 if(NOT DEFINED VERSION)
-    # 1. Prefer version.env — canonical source of truth, kept in sync by CI
     set(_VERSION_ENV "${CMAKE_SOURCE_DIR}/../.github/version.env")
     if(EXISTS "${_VERSION_ENV}")
         file(STRINGS "${_VERSION_ENV}" _VER_LINE REGEX "^VERSION=")
         if(_VER_LINE)
             string(REGEX REPLACE "^VERSION=" "" VERSION "${_VER_LINE}")
         endif()
+        # file(STRINGS) is not tracked as a configure input, so re-run
+        # configure whenever version.env changes. Without this an existing
+        # build dir would keep baking the previous version after a bump.
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_VERSION_ENV}")
     endif()
 
-    # 2. Fallback: git describe (nearest tag)
-    if(NOT VERSION OR "${VERSION}" STREQUAL "")
+    # Fallback for a tree without version.env (e.g. a standalone shell
+    # checkout): the nearest git tag. No maintenance needed.
+    if(NOT VERSION OR "${VERSION}" STREQUAL "" OR "${VERSION}" STREQUAL "rolling")
         execute_process(COMMAND git describe --tags --match "v*" --abbrev=0
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
             OUTPUT_VARIABLE VERSION
@@ -20,10 +29,10 @@ if(NOT DEFINED VERSION)
         )
     endif()
 
-    # Last resort hardcoded
-    if("${VERSION}" STREQUAL "" OR "${VERSION}" STREQUAL "rolling")
-        set(VERSION "2.3.2")
-    endif()
+    # Nothing left to derive from (no version.env, no git): keep VERSION empty
+    # instead of hardcoding a release number that would drift. Consumers
+    # degrade cleanly (CUtils.version reports an unknown version).
+    string(STRIP "${VERSION}" VERSION)
 endif()
 
 if(NOT DEFINED GIT_REVISION)
@@ -61,7 +70,14 @@ endif()
 string(REGEX REPLACE "^v" "" VERSION "${VERSION}")
 string(REGEX REPLACE "^v" "" DISPLAY_VERSION "${DISPLAY_VERSION}")
 
-project(caelestia-shell VERSION ${VERSION} LANGUAGES C CXX)
+# Only hand VERSION to project() when we actually derived one. An empty
+# version is valid here (consumers report an unknown version) but is not a
+# legal project() VERSION argument.
+if(VERSION)
+    project(caelestia-shell VERSION ${VERSION} LANGUAGES C CXX)
+else()
+    project(caelestia-shell LANGUAGES C CXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -105,7 +121,8 @@ endif()
 
 if("shell" IN_LIST ENABLE_MODULES)
     foreach(dir assets components modules scripts services utils)
-        install(DIRECTORY ${dir} DESTINATION "${INSTALL_QSCONFDIR}")
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${dir}
+                DESTINATION ${INSTALL_QSCONFDIR})
     endforeach()
 
     install(PROGRAMS assets/wrap_term_launch.sh DESTINATION "${INSTALL_QSCONFDIR}/assets")
@@ -117,6 +134,47 @@ if("shell" IN_LIST ENABLE_MODULES)
 
     install(FILES lockscreen.qml DESTINATION "${INSTALL_QSCONFDIR}")
     install(FILES LICENSE DESTINATION "${INSTALL_QSCONFDIR}")
+
+    # Translations: compile every translations/*.ts into a .qm next to the
+    # installed shell, where the Translations singleton looks for them.
+    #
+    # Compiled catalogues are committed alongside their sources, so a build
+    # without Qt's Linguist tools installs those instead of quietly dropping
+    # every language but English -- a missing build tool is not something a
+    # user can be expected to connect to a language having disappeared from
+    # the picker. When lrelease is present the .ts files are recompiled and
+    # win, so an edited translation never has to wait for someone to refresh
+    # the committed artefact.
+    find_package(Qt6 QUIET COMPONENTS LinguistTools)
+    file(GLOB TS_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/translations/*.ts")
+    file(GLOB PREBUILT_QM_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/translations/*.qm")
+
+    if(Qt6LinguistTools_FOUND AND TS_FILES)
+        set(QM_DIR "${CMAKE_BINARY_DIR}/translations")
+        set(QM_FILES "")
+
+        foreach(ts_file ${TS_FILES})
+            get_filename_component(ts_name "${ts_file}" NAME_WE)
+            set(qm_file "${QM_DIR}/${ts_name}.qm")
+            add_custom_command(
+                OUTPUT "${qm_file}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "${QM_DIR}"
+                COMMAND Qt6::lrelease -silent "${ts_file}" -qm "${qm_file}"
+                DEPENDS "${ts_file}"
+                COMMENT "Compiling translation ${ts_name}.qm"
+                VERBATIM
+            )
+            list(APPEND QM_FILES "${qm_file}")
+        endforeach()
+
+        add_custom_target(caelestia-translations ALL DEPENDS ${QM_FILES})
+        install(FILES ${QM_FILES} DESTINATION "${INSTALL_QSCONFDIR}/translations")
+    elseif(PREBUILT_QM_FILES)
+        message(STATUS "Qt Linguist tools not found - installing the committed catalogues as-is")
+        install(FILES ${PREBUILT_QM_FILES} DESTINATION "${INSTALL_QSCONFDIR}/translations")
+    elseif(TS_FILES)
+        message(WARNING "Qt Linguist tools not found and no compiled catalogues - the shell will only be available in English")
+    endif()
 endif()
 
 if("m3shapes" IN_LIST ENABLE_MODULES)

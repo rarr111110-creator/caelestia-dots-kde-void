@@ -62,7 +62,7 @@ Column {
             speed: Config.general.sessionGifSpeed
             source: Paths.absolutePath(Config.paths.sessionGif)
             fillMode: AnimatedImage.PreserveAspectFit
-            opacity: Visibilities.isCaelestiaMode ? 0 : 1
+            opacity: GlobalConfig.general.caelestiaMode ? 0 : 1
 
             Behavior on opacity { Anim { type: Anim.Standard } }
 
@@ -77,7 +77,7 @@ Column {
             speed: Config.general.sessionGifSpeed
             source: Paths.absolutePath("root:/assets/dino.gif")
             fillMode: AnimatedImage.PreserveAspectFit
-            opacity: Visibilities.isCaelestiaMode ? 1 : 0
+            opacity: GlobalConfig.general.caelestiaMode ? 1 : 0
 
             Behavior on opacity { Anim { type: Anim.Standard } }
             
@@ -97,7 +97,7 @@ Column {
             speed: Config.general.sessionGifSpeed
             source: Paths.absolutePath("root:/assets/dino.gif")
             fillMode: AnimatedImage.PreserveAspectFit
-            opacity: Visibilities.isCaelestiaMode ? 1 : 0
+            opacity: GlobalConfig.general.caelestiaMode ? 1 : 0
 
             Behavior on opacity { Anim { type: Anim.Standard } }
             

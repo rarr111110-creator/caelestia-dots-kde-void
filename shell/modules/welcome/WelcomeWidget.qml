@@ -24,11 +24,27 @@ FloatingWindow {
     property int expandedIndex: -1
     property bool loaded: false
     property bool hasAnimated: false
-    
+
     function isVideo(url) {
         if (!url) return false;
         let lower = url.toLowerCase();
         return lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mkv") || lower.endsWith(".avi") || lower.endsWith(".mov");
+    }
+
+    // Append the given feature ids to the seen state file. Ids are passed as
+    // argv (never interpolated into the script) so ids containing '#' or
+    // quotes cannot break the shell command or be interpreted as comments.
+    function persistSeen(ids: var): void {
+        if (!ids || ids.length === 0) return;
+        let args = [
+            "bash", "-c",
+            "mkdir -p ~/.local/share/caelestia/state && for id in \"$@\"; do echo \"$id\"; done >> ~/.local/share/caelestia/state/seen_features.txt",
+            "mark-seen"
+        ];
+        for (let i = 0; i < ids.length; ++i)
+            args.push(String(ids[i]));
+        writeStateProcess.command = args;
+        writeStateProcess.running = true;
     }
 
     color: Colours.tPalette.m3surface
@@ -37,8 +53,20 @@ FloatingWindow {
 
     visible: loaded && unseenFeatures.length > 0
 
-    implicitWidth: 640
-    implicitHeight: 480
+    // Dismissing the window (close button/Esc rather than "got it"/"done
+    // all") still has to mark the remaining features as seen, otherwise the
+    // popup comes back on every shell restart.
+    onVisibleChanged: {
+        if (!visible && loaded && unseenFeatures.length > 0) {
+            persistSeen(unseenFeatures.map(f => f.id));
+            unseenFeatures = [];
+        }
+    }
+
+    implicitWidth: 680 // Not to be changed
+    implicitHeight: 480 // Text and image proportions were set according to these numbers
+    minimumSize.width: 680
+    minimumSize.height: 480
 
     BackgroundEffect.blurRegion: Region {
         Region { x: -10; y: -10; width: 1; height: 1 } // Prevent full-window blur fallback when disabled
@@ -71,27 +99,27 @@ FloatingWindow {
             anchors.fill: parent
             anchors.margins: Tokens.padding.large
             initialItem: homePage
-            
+
             // Add a clip so pushing/popping doesn't overflow rounded corners
             clip: true
         }
 
         Component {
             id: homePage
-            
+
             Item {
                 id: homeRoot
-                
+
                 // Calculate centered block bounds
                 readonly property real startupBlockHeight: 90.38 + Tokens.spacing.large + titleText.implicitHeight
                 readonly property real startupBlockY: (homeRoot.height - startupBlockHeight) / 2 - 40
-                
+
                 property bool isAnimatingState: false
-                
+
                 anchors.fill: parent
-                
+
                 state: root.hasAnimated ? "loaded" : "startup"
-                
+
                 Timer {
                     id: startupTimer
                     interval: 2300
@@ -103,14 +131,14 @@ FloatingWindow {
                         finishAnimTimer.start()
                     }
                 }
-                
+
                 Timer {
                     id: finishAnimTimer
                     interval: 850 // slightly longer than the 800ms animation
                     onTriggered: homeRoot.isAnimatingState = false
                 }
-                
-                
+
+
                 Item {
                     id: logoItem
                     width: 128
@@ -119,7 +147,7 @@ FloatingWindow {
                     x: homeRoot.state === "startup" ? (homeRoot.width - width) / 2 : (homeRoot.width - (64 + Tokens.spacing.medium + titleText.implicitWidth)) / 2
                     y: homeRoot.state === "startup" ? homeRoot.startupBlockY : (46 - 45.19) / 2
                     scale: homeRoot.state === "startup" ? 1.0 : 64 / 128
-                    
+
                     AnimatedLogo {
                         id: logoAnim
                         anchors.fill: parent
@@ -141,10 +169,10 @@ FloatingWindow {
                     color: Colours.palette.m3onSurfaceVariant
                     x: homeRoot.state === "startup" ? (homeRoot.width - implicitWidth) / 2 : titleText.x
                     y: titleText.y + titleText.implicitHeight
-                    
+
                     opacity: homeRoot.state === "startup" ? 1 : 0
                 }
-                
+
                 // Features List
                 ListView {
                     id: featuresList
@@ -153,18 +181,18 @@ FloatingWindow {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    
+
                     opacity: homeRoot.state === "startup" ? 0 : 1
                     clip: true
                     spacing: Tokens.spacing.medium
                     model: root.unseenFeatures
-                    
+
                     Behavior on opacity { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
-                    
+
                     footer: Item {
                         width: featuresList.width
                         height: 64 + Tokens.spacing.large
-                        
+
                         StyledText {
                             anchors.horizontalCenter: parent.horizontalCenter
                             y: Math.max(0, featuresList.height - featuresList.contentHeight) + (parent.height - implicitHeight) / 2
@@ -173,24 +201,24 @@ FloatingWindow {
                             color: Colours.palette.m3onSurfaceVariant
                         }
                     }
-                    
+
                     delegate: StyledRect {
                         id: delegateRect
-                        
+
                         required property int index
                         required property var modelData
-                        
+
                         property var feature: modelData
                         property bool hasMedia: feature && !!feature.media_url
-                        
+
                         width: ListView.view.width
                         height: contentColumn.implicitHeight + Tokens.padding.large * 2
-                        
+
                         radius: Tokens.rounding.extraLarge
                         color: Colours.layer(Colours.palette.m3surfaceContainerHigh, 2)
-                        
+
                         Behavior on color { CAnim {} }
-                        
+
                         StateLayer {
                             id: stateLayer
                             anchors.fill: parent
@@ -198,12 +226,12 @@ FloatingWindow {
                             topRightRadius: parent.radius
                             bottomLeftRadius: parent.radius
                             bottomRightRadius: parent.radius
-                            
+
                             onClicked: {
                                 stackView.push(featurePage, { featureData: feature, currentIndex: index })
                             }
                         }
-                        
+
                         ColumnLayout {
                             id: contentColumn
                             anchors.left: parent.left
@@ -211,19 +239,19 @@ FloatingWindow {
                             anchors.top: parent.top
                             anchors.margins: Tokens.padding.large
                             spacing: Tokens.spacing.large
-                            
+
                             // Header Row (Icon + Text + Chevron)
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: Tokens.spacing.medium
-                                
+
                                 // Circular Icon
                                 StyledRect {
                                     Layout.preferredHeight: 48
                                     Layout.preferredWidth: 48
                                     radius: Tokens.rounding.full
                                     color: Colours.palette.m3secondaryContainer
-                                    
+
                                     MaterialIcon {
                                         anchors.centerIn: parent
                                         text: (feature && feature.icon) ? feature.icon : (feature && root.isVideo(feature.media_url) ? "videocam" : "new_releases")
@@ -233,31 +261,31 @@ FloatingWindow {
                                         fill: 1
                                     }
                                 }
-                                
+
                                 // Title & Description
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 2
-                                    
+
                                     StyledText {
                                         Layout.fillWidth: true
                                         text: feature ? feature.title : ""
-                                        font: Tokens.font.body.medium
+                                        font: Tokens.font.body.large
                                         color: Colours.palette.m3onSurface
                                         elide: Text.ElideRight
                                     }
-                                    
+
                                     StyledText {
                                         Layout.fillWidth: true
                                         text: feature ? feature.description : ""
-                                        font: Tokens.font.label.small
+                                        font: Tokens.font.body.small
                                         color: Colours.palette.m3onSurfaceVariant
                                         elide: Text.ElideRight
                                         wrapMode: Text.NoWrap
                                         maximumLineCount: 1
                                     }
                                 }
-                                
+
                                 // Chevron right for drill down
                                 MaterialIcon {
                                     text: "chevron_right"
@@ -268,7 +296,7 @@ FloatingWindow {
                         }
                     }
                 }
-                
+
                 Item {
                     id: fabContainer
                     anchors.right: parent.right
@@ -276,39 +304,37 @@ FloatingWindow {
                     anchors.margins: Tokens.spacing.large
                     width: 56
                     height: 56
-                    
+
                     opacity: homeRoot.state === "startup" ? 0 : 1
-                    
+
                     Behavior on opacity { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
-                    
+
                     StyledRect {
                         id: markAllBtn
                         anchors.fill: parent
                         radius: Tokens.rounding.full
                         color: Colours.palette.m3primary
-                        
+
                         opacity: markAllMouse.pressed ? 0.85 : (markAllMouse.containsMouse ? 0.95 : 1.0)
                         scale: markAllMouse.pressed ? 0.95 : (markAllMouse.containsMouse ? 1.05 : 1.0)
-                        
+
                         Behavior on opacity { CAnim { duration: 150 } }
                         Behavior on scale { CAnim { duration: 150 } }
-                        
+
                         MaterialIcon {
                             anchors.centerIn: parent
                             text: "done_all"
                             color: Colours.palette.m3onPrimary
                             fontStyle: Tokens.font.icon.builders.large.weight(Font.Medium).build()
                         }
-                        
+
                         MouseArea {
                             id: markAllMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                let script = "for id in " + root.unseenFeatures.map(f => f.id).join(" ") + "; do echo \"$id\" >> ~/.local/share/caelestia/state/seen_features.txt; done"
-                                writeStateProcess.command = ["bash", "-c", script]
-                                writeStateProcess.running = true
+                                root.persistSeen(root.unseenFeatures.map(f => f.id))
                                 root.unseenFeatures = []
                             }
                         }
@@ -319,29 +345,29 @@ FloatingWindow {
 
         Component {
             id: featurePage
-            
+
             Item {
                 property var featureData
                 property int currentIndex: -1
                 property bool hasMedia: featureData && !!featureData.media_url
-                
+
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: Tokens.spacing.large
-                
+
                 // Header with Back Button
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Tokens.spacing.medium
-                    
+
                     StyledRect {
                         Layout.preferredWidth: 48
                         Layout.preferredHeight: 48
                         radius: Tokens.rounding.full
                         color: stateLayer.containsMouse ? Colours.palette.m3surfaceVariant : "transparent"
-                        
+
                         Behavior on color { CAnim {} }
-                        
+
                         StateLayer {
                             id: stateLayer
                             anchors.fill: parent
@@ -349,10 +375,10 @@ FloatingWindow {
                             topRightRadius: parent.radius
                             bottomLeftRadius: parent.radius
                             bottomRightRadius: parent.radius
-                            
+
                             onClicked: stackView.pop()
                         }
-                        
+
                         MaterialIcon {
                             anchors.centerIn: parent
                             text: "arrow_back"
@@ -360,7 +386,7 @@ FloatingWindow {
                             fontStyle: Tokens.font.icon.builders.medium.weight(Font.Medium).build()
                         }
                     }
-                    
+
                     StyledText {
                         Layout.fillWidth: true
                         text: featureData ? featureData.title : ""
@@ -370,15 +396,15 @@ FloatingWindow {
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
                     }
-                    
+
                     StyledRect {
                         Layout.preferredWidth: 48
                         Layout.preferredHeight: 48
                         radius: Tokens.rounding.full
                         color: gotItLayer.containsMouse ? Colours.palette.m3surfaceVariant : "transparent"
-                        
+
                         Behavior on color { CAnim {} }
-                        
+
                         StateLayer {
                             id: gotItLayer
                             anchors.fill: parent
@@ -386,19 +412,18 @@ FloatingWindow {
                             topRightRadius: parent.radius
                             bottomLeftRadius: parent.radius
                             bottomRightRadius: parent.radius
-                            
+
                             onClicked: {
                                 let currentId = featureData.id
-                                writeStateProcess.command = ["bash", "-c", "echo '" + currentId + "' >> ~/.local/share/caelestia/state/seen_features.txt"]
-                                writeStateProcess.running = true
-                                
+                                root.persistSeen([currentId])
+
                                 stackView.pop()
-                                
+
                                 let newUnseen = root.unseenFeatures.filter(f => f.id !== currentId)
                                 root.unseenFeatures = newUnseen
                             }
                         }
-                        
+
                         MaterialIcon {
                             anchors.centerIn: parent
                             text: "check"
@@ -407,7 +432,7 @@ FloatingWindow {
                         }
                     }
                 }
-                
+
                 // Expanded Content
                 ScrollView {
                     id: expandedScrollView
@@ -416,17 +441,17 @@ FloatingWindow {
                     contentWidth: availableWidth
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     clip: true
-                    
+
                     ColumnLayout {
                         width: expandedScrollView.availableWidth
                         spacing: Tokens.spacing.large
-                        
+
                         // Media Container
                         Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 280
                             visible: hasMedia
-                        
+
                         StyledRect {
                             anchors.fill: parent
                             radius: Tokens.rounding.small
@@ -444,7 +469,7 @@ FloatingWindow {
                                 return true;
                             }
                         }
-                        
+
                         AnimatedImage {
                             anchors.fill: parent
                             anchors.margins: Tokens.padding.small
@@ -453,7 +478,7 @@ FloatingWindow {
                             fillMode: Image.PreserveAspectFit
                             playing: visible
                         }
-                        
+
                         VideoOutput {
                             id: vidOut
                             anchors.fill: parent
@@ -461,18 +486,18 @@ FloatingWindow {
                             visible: hasMedia && root.isVideo(featureData.media_url)
                             fillMode: VideoOutput.PreserveAspectFit
                         }
-                        
+
                         AudioOutput {
                             id: aOut
                             muted: true
                         }
-                        
+
                         MediaPlayer {
                             videoOutput: vidOut
                             audioOutput: aOut
                             source: hasMedia ? Qt.resolvedUrl("../../assets/welcome/" + featureData.media_url) : ""
                             loops: MediaPlayer.Infinite
-                            
+
                             Component.onCompleted: {
                                 if (hasMedia && root.isVideo(featureData.media_url)) {
                                     play()
@@ -480,7 +505,7 @@ FloatingWindow {
                             }
                         }
                     }
-                    
+
                     // Description Full
                     StyledText {
                         Layout.fillWidth: true
@@ -505,12 +530,12 @@ FloatingWindow {
                     let parts = text.split("---SEEN---")
                     let jsonText = parts[0].trim()
                     let seenText = parts[1] ? parts[1].trim() : ""
-                    
+
                     let data = JSON.parse(jsonText)
                     let loadedFeatures = data.features || []
-                    
+
                     let seen = seenText.split("\n").map(s => s.trim()).filter(s => s.length > 0)
-                    
+
                     root.features = loadedFeatures
                     root.unseenFeatures = loadedFeatures.filter(f => !seen.includes(f.id))
                     root.loaded = true

@@ -51,7 +51,7 @@ public:
     Q_INVOKABLE void clearGeometry(QQuickItem* anchor, const QString& uuid);
 
 private:
-    QHash<QString, QRect> m_published;
+    QHash<QString, QHash<quintptr, QRect>> m_published;
 };
 
 } // namespace caelestia::services

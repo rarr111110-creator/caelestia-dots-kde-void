@@ -4,17 +4,20 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pam
 import Caelestia.Config
+import Caelestia.Services
 
 Scope {
     id: root
 
-    required property WlSessionLock lock
+    required property var lock
 
     readonly property alias passwd: passwd
     readonly property alias fprint: fprint
+    readonly property alias howdy: howdy
     property string lockMessage
     property string state
     property string fprintState
+    property string howdyState
     property string buffer
 
     signal flashMsg
@@ -22,6 +25,14 @@ Scope {
     function handleKey(event: KeyEvent): void {
         if (passwd.active || state === "max")
             return;
+
+        // Trigger howdy on an empty-buffer Enter so face unlock can start
+        // without typing a character first.
+        if (howdy.canAttempt && !howdy.active && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) && buffer.length === 0)
+            return howdy.start();
+
+        if (howdy.active)
+            howdy.abort();
 
         if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
             passwd.start();
@@ -138,6 +149,68 @@ Scope {
         }
     }
 
+    PamContext {
+        id: howdy
+
+        property bool available
+        property int tries
+        property int errorTries
+        readonly property bool canAttempt: available && GlobalConfig.lock.enableHowdy && root.lock.secure
+
+        function checkAvail(): void {
+            if (!available || !GlobalConfig.lock.enableHowdy || !root.lock.secure) {
+                abort();
+                return;
+            }
+
+            tries = 0;
+            errorTries = 0;
+            start();
+        }
+
+        config: "howdy"
+        configDirectory: Quickshell.shellDir + "/assets/pam.d"
+
+        onCompleted: res => {
+            if (!available)
+                return;
+
+            if (res === PamResult.Success)
+                return root.lock.unlock();
+
+            if (res === PamResult.Error) {
+                root.howdyState = "error";
+                errorTries++;
+                if (errorTries < 5) {
+                    abort();
+                    howdyErrorRetry.restart();
+                }
+            } else if (res === PamResult.MaxTries) {
+                tries++;
+                if (tries < GlobalConfig.lock.maxHowdyTries) {
+                    root.howdyState = "fail";
+                    start();
+                } else {
+                    root.howdyState = "max";
+                    abort();
+                }
+            }
+
+            root.flashMsg();
+            howdyStateReset.start();
+        }
+    }
+
+    Process {
+        id: howdyAvailProc
+
+        command: ["sh", "-c", "command -v howdy"]
+        onExited: code => { // qmllint disable signal-handler-parameters
+            howdy.available = code === 0;
+            howdy.checkAvail();
+        }
+    }
+
     Timer {
         id: errorRetry
 
@@ -165,19 +238,39 @@ Scope {
         }
     }
 
+    Timer {
+        id: howdyErrorRetry
+
+        interval: 800
+        onTriggered: howdy.start()
+    }
+
+    Timer {
+        id: howdyStateReset
+
+        interval: 4000
+        onTriggered: {
+            root.howdyState = "";
+            howdy.errorTries = 0;
+        }
+    }
+
     Connections {
         function onSecureChanged(): void {
             if (root.lock.secure) {
                 availProc.running = true;
+                howdyAvailProc.running = true;
                 root.buffer = "";
                 root.state = "";
                 root.fprintState = "";
+                root.howdyState = "";
                 root.lockMessage = "";
             }
         }
 
         function onUnlock(): void {
             fprint.abort();
+            howdy.abort();
         }
 
         target: root.lock
@@ -188,6 +281,20 @@ Scope {
             fprint.checkAvail();
         }
 
+        function onEnableHowdyChanged(): void {
+            if (!GlobalConfig.lock.enableHowdy && howdy.active)
+                howdy.abort();
+        }
+
         target: GlobalConfig.lock
+    }
+
+    Connections {
+        function onResumed(): void {
+            if (howdy.canAttempt && !howdy.active && GlobalConfig.lock.triggerHowdyOnWake)
+                howdy.start();
+        }
+
+        target: SessionManager
     }
 }

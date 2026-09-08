@@ -11,10 +11,10 @@ class AppearancePadding;
 class AppearanceRounding;
 class AppearanceSpacing;
 class AppearanceTransparency;
+class ConfigRoot;
 class FontTokens;
-class GlobalConfig;
 class SizeTokens;
-class TokenConfig;
+class TokensRoot;
 
 class Tokens : public QQuickAttachedPropertyPropagator, public QQmlParserStatus {
     Q_OBJECT
@@ -51,7 +51,7 @@ public:
     [[nodiscard]] const FontTokens* font() const;
     [[nodiscard]] const AnimTokens* anim() const;
 
-    [[nodiscard]] Q_INVOKABLE static TokenConfig* forScreen(const QString& screen);
+    [[nodiscard]] Q_INVOKABLE static TokensRoot* forScreen(const QString& screen);
 
     static Tokens* qmlAttachedProperties(QObject* object);
 
@@ -72,8 +72,8 @@ private:
 
     bool m_complete = false;
     QString m_screen;
-    GlobalConfig* m_config = nullptr;
-    TokenConfig* m_tokens = nullptr;
+    ConfigRoot* m_config = nullptr;
+    TokensRoot* m_tokens = nullptr;
     FontTokens* m_font = nullptr;
     AnimTokens* m_anim = nullptr;
 };

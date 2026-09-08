@@ -17,6 +17,7 @@ Item {
 
     required property DrawerVisibilities visibilities
     required property var panels
+    required property real maxWidth
     required property real maxHeight
 
     readonly property int padding: Tokens.padding.large
@@ -34,9 +35,10 @@ Item {
             Quickshell.execDetached(command);
     }
 
-    Connections {
-        target: Clipboard
+    implicitWidth: listWrapper.width + padding * 2
+    implicitHeight: listWrapper.height + sessionFooter.height + searchWrapper.height + listWrapper.anchors.bottomMargin + sessionFooter.anchors.bottomMargin + searchWrapper.anchors.bottomMargin
 
+    Connections {
         function onClearHistoryFinished(success: bool): void {
             if (success) {
                 if (GlobalConfig.utilities.toasts.clipboardChanged)
@@ -45,11 +47,9 @@ Item {
                 Toaster.toast(qsTr("Failed to clear clipboard history"), "", "error");
             }
         }
+
+        target: Clipboard
     }
-
-    implicitWidth: listWrapper.width + padding * 2
-
-    implicitHeight: listWrapper.height + sessionFooter.height + searchWrapper.height + listWrapper.anchors.bottomMargin + sessionFooter.anchors.bottomMargin + searchWrapper.anchors.bottomMargin
 
     Item {
         id: listWrapper
@@ -67,6 +67,7 @@ Item {
             content: root
             visibilities: root.visibilities
             panels: root.panels
+            maxWidth: root.maxWidth - root.padding * 2
             maxHeight: root.maxHeight - searchWrapper.implicitHeight - sessionFooter.implicitHeight - root.padding * 2 - (sessionFooter.visible ? root.footerSpacing * 2 : root.footerSpacing)
             search: search
             padding: root.padding
@@ -187,6 +188,11 @@ Item {
             placeholderText: qsTr("Type \"%1\" for commands").arg(GlobalConfig.launcher.actionPrefix)
 
             onAccepted: {
+                if (list.showAppsBrowser) {
+                    list.currentList?.activateCurrent();
+                    return;
+                }
+
                 const currentItem = list.currentList?.currentItem;
                 if (currentItem) {
                     if (list.showWallpapers) {
@@ -208,8 +214,36 @@ Item {
                 }
             }
 
-            Keys.onUpPressed: list.currentList?.decrementCurrentIndex()
-            Keys.onDownPressed: list.currentList?.incrementCurrentIndex()
+            Keys.onUpPressed: {
+                if (!list.showWallpapers)
+                    list.currentList?.decrementCurrentIndex();
+            }
+            Keys.onDownPressed: {
+                if (!list.showWallpapers)
+                    list.currentList?.incrementCurrentIndex();
+            }
+            Keys.onLeftPressed: event => {
+                if (list.showWallpapers) {
+                    list.currentList?.decrementCurrentIndex();
+                    event.accepted = true;
+                } else if (list.showAppsBrowser) {
+                    list.currentList?.moveLeft();
+                    event.accepted = true;
+                } else {
+                    event.accepted = false;
+                }
+            }
+            Keys.onRightPressed: event => {
+                if (list.showWallpapers) {
+                    list.currentList?.incrementCurrentIndex();
+                    event.accepted = true;
+                } else if (list.showAppsBrowser) {
+                    list.currentList?.moveRight();
+                    event.accepted = true;
+                } else {
+                    event.accepted = false;
+                }
+            }
 
             Keys.onEscapePressed: root.visibilities.launcher = false
 
@@ -222,6 +256,12 @@ Item {
             }
 
             Keys.onPressed: event => {
+                if (list.showAppsBrowser && event.key === Qt.Key_Tab) {
+                    list.currentList?.toggleFocus();
+                    event.accepted = true;
+                    return;
+                }
+
                 if (!GlobalConfig.launcher.vimKeybinds)
                     return;
 

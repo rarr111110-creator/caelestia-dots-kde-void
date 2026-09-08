@@ -1,0 +1,168 @@
+name: Crowdin
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "shell/**/*.qml"
+      - "shell/translations/**"
+      - "crowdin.yml"
+      - ".github/workflows/crowdin.yml"
+  workflow_dispatch:
+    inputs:
+      seed_translations:
+        description: >-
+          Also upload the committed catalogues. Needed once, on the very first
+          run, and harmful afterwards -- see the workflow comments.
+        type: boolean
+        default: false
+
+concurrency:
+  group: crowdin
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    # Skipped on forks: the secrets do not exist there, and the action would
+    # fail on every push rather than simply not running.
+    if: github.repository == 'ladybug-me/caelestia-dots-kde'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Install Qt Linguist Tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y qt6-l10n-tools qt6-tools-dev
+
+      # English is the source language, so its catalogue is not committed --
+      # it would be thousands of lines of empty translations. Crowdin needs one
+      # to slice into the target languages, so it is rebuilt from the QML here
+      # and left uncommitted.
+      - name: Regenerate the Source Catalogue
+        run: |
+          set -euo pipefail
+          scripts/update-translations.sh en
+          test -s shell/translations/caelestia_en.ts
+
+      - name: Synchronize with Crowdin
+        uses: crowdin/github-action@v2
+        with:
+          upload_sources: true
+          # Off by default: translations are edited in Crowdin, and pushing the
+          # committed ones back on every run would let a stale local catalogue
+          # overwrite newer work there.
+          #
+          # It has to be on exactly once, though. Crowdin starts empty, so a
+          # first run that only uploads sources and then downloads would export
+          # every target file untranslated -- and open a pull request replacing
+          # a finished translation with a blank one. Seeding first means the
+          # download returns what is already here.
+          upload_translations: ${{ inputs.seed_translations == true }}
+          auto_approve_imported: ${{ inputs.seed_translations == true }}
+          download_translations: true
+          # Crowdin exports a file for every target language on the project,
+          # including the ones at 0%. Left on, the first run added 26 catalogues
+          # of nothing but untranslated entries, each of which the build would
+          # compile and the language picker would then offer as a language that
+          # renders in English.
+          skip_untranslated_files: true
+          localization_branch_name: i18n/crowdin
+          create_pull_request: true
+          pull_request_title: "i18n: new translations from Crowdin"
+          pull_request_body: |
+            Translations downloaded from Crowdin.
+
+            The compiled `.qm` catalogues are refreshed by the workflow on this
+            branch, so this can be merged as it stands.
+          commit_message: "i18n: new translations from Crowdin"
+          config: crowdin.yml
+        env:
+          # The caelestia-automation app token, as every workflow here that
+          # opens a pull request uses. Not secrets.GITHUB_TOKEN: a workflow
+          # cannot open a pull request with it unless the repository allows
+          # Actions to, and the first run failed on exactly that ("GitHub
+          # Actions is not permitted to create or approve pull requests").
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+
+  # A Crowdin pull request carries .ts files only. The compiled catalogues are
+  # committed so that a build without Qt's Linguist tools still ships every
+  # language, and such a build installs them as they are -- so a .ts that
+  # arrives without its .qm would quietly ship the previous translation. This
+  # keeps the pair together.
+  compile:
+    runs-on: ubuntu-latest
+    if: github.repository == 'ladybug-me/caelestia-dots-kde'
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Checkout Localization Branch
+        uses: actions/checkout@v4
+        with:
+          ref: i18n/crowdin
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+        continue-on-error: true
+        id: checkout
+
+      - name: Install Qt Linguist Tools
+        if: steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y qt6-l10n-tools qt6-tools-dev
+
+      - name: Recompile Catalogues
+        if: steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          lrelease=/usr/lib/qt6/bin/lrelease
+          [[ -x "$lrelease" ]] || lrelease=$(command -v lrelease)
+
+          for ts in shell/translations/caelestia_*.ts; do
+            "$lrelease" -silent "$ts" -qm "${ts%.ts}.qm"
+          done
+
+      - name: Commit Compiled Catalogues
+        if: steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- shell/translations; then
+            echo "Catalogues already match their sources."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shell/translations
+          git commit -m "i18n: recompile catalogues"
+          git push
+    needs: synchronize

@@ -95,7 +95,7 @@ Scope {
     // qmllint disable unresolved-type
     CustomShortcut {
         // qmllint enable unresolved-type
-        name: "screenshot"
+        name: "areaPickerScreenshot"
         description: "Open screenshot tool"
         onPressed: {
             root.freeze = false;

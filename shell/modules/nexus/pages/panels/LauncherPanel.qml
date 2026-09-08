@@ -123,6 +123,13 @@ PageBase {
 
         ToggleRow {
             first: true
+            text: qsTr("Browse apps when search is empty")
+            subtext: qsTr("Show the categorized app grid in the launcher when the search field is empty")
+            checked: Config.launcher.showBrowseOnEmpty
+            onToggled: GlobalConfig.launcher.showBrowseOnEmpty = checked
+        }
+
+        ToggleRow {
             text: qsTr("Show power menu")
             subtext: qsTr("Show the quick session controls (shutdown, sleep, logout) at the bottom")
             checked: Config.launcher.showPowerMenu
@@ -178,9 +185,33 @@ PageBase {
             onMoved: v => GlobalConfig.launcher.dragThreshold = v
         }
 
+        // Clipboard
+        SectionHeader {
+            text: qsTr("Clipboard")
+        }
+
+        StepperRow {
+            first: true
+            label: qsTr("Max clipboard entries")
+            subtext: qsTr("Number of copied items kept in history")
+            value: Config.launcher.clipboardMaxEntries
+            from: 1
+            to: 100
+            stepSize: 1
+            onMoved: v => GlobalConfig.launcher.clipboardMaxEntries = v
+        }
+
+        ToggleRow {
+            last: true
+            text: qsTr("Confirm clear")
+            subtext: qsTr("Ask before clearing the clipboard history")
+            checked: GlobalConfig.launcher.confirmClearClipboard
+            onToggled: GlobalConfig.launcher.confirmClearClipboard = checked
+        }
+
         // Behaviour
         SectionHeader {
-            text: Strings.localizeEnglishSpelling(qsTr("Behaviour"))
+            text: qsTr("Behavior")
         }
 
         ToggleRow {

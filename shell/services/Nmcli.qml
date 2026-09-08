@@ -1,9 +1,11 @@
-﻿pragma Singleton
+pragma Singleton
 pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Caelestia
 import Caelestia.Services
+import qs.components.misc
 
 /// Thin adapter wrapping the C++ NmQt (NetworkManagerQt/D-Bus) singleton.
 /// Preserves the legacy Nmcli API surface so existing QML consumers continue
@@ -19,15 +21,20 @@ Singleton {
     readonly property bool isConnected: NmQt.isConnected
     property bool wifiEnabled: NmQt.wifiEnabled
     readonly property bool scanning: NmQt.scanning
+    readonly property string connectingSsid: NmQt.connectingSsid
 
     readonly property var wirelessDeviceDetails: NmQt.wirelessDeviceDetails
     readonly property var ethernetDeviceDetails: NmQt.ethernetDeviceDetails
 
-    // NmQt always returns a QVariantMap, which QML sees as a truthy object even
-    // when empty. Collapse the "no active Ethernet connection" case back to
-    // null so truthiness checks (e.g. StatusIcons.qml) behave as before.
-    readonly property var activeEthernet: (NmQt.activeEthernet && Object.keys(NmQt.activeEthernet).length > 0) ? NmQt.activeEthernet : null
-    readonly property var ethernetDevices: NmQt.ethernetDevices
+    // Ethernet devices are rebuilt as typed EthernetDevice objects so both the
+    // legacy bar popout (`.interface`) and the Nexus pages (`.iface`) resolve.
+    property list<EthernetDevice> __ethernetDevices: []
+    readonly property list<EthernetDevice> ethernetDevices: __ethernetDevices
+    readonly property EthernetDevice activeEthernet: __ethernetDevices.find(d => d.connected) ?? null
+    readonly property bool hasAvailableEthernet: __ethernetDevices.some(d => d.state !== "unavailable")
+    property string ethernetSpeed: ""
+    property string ethernetDataUsage: ""
+    readonly property var savedConnectionSecurity: NmQt.savedConnectionSecurity
 
     readonly property var vpnConnections: NmQt.vpnConnections
     readonly property var activeVpn: NmQt.activeVpn
@@ -45,7 +52,7 @@ Singleton {
     readonly property list<AccessPoint> networks: __networks
     property list<AccessPoint> __networks: []
 
-    readonly property AccessPoint active: __networks.find(n => n.active) ?? null
+    property AccessPoint active: null
 
     property var deviceStatus: null
     property var wirelessInterfaces: []
@@ -84,26 +91,69 @@ Singleton {
     readonly property alias connectionCheckTimer: connectionCheckTimer
     readonly property alias immediateCheckTimer: immediateCheckTimer
 
+    // Guards against spurious notifications at shell startup.
+    // Becomes true ~3 s after the shell is ready so we don't toast
+    // "Wi-Fi connected" for the network that was already active.
+
+
+    signal connectionSuccessful(string ssid)
     signal connectionFailed(string ssid)
     signal monitorEvent()
+
+    function rebuildActive(): void {
+        const raw = NmQt.active;
+        if (raw && raw.ssid && raw.ssid.length > 0) {
+            const found = __networks.find(n => n.ssid === raw.ssid) ?? null;
+            if (found) {
+                root.active = found;
+            } else if (!root.active || root.active.ssid !== raw.ssid) {
+                root.active = apComp.createObject(root, { lastIpcObject: raw });
+            }
+            if (root.pendingConnection && root.active && root.active.ssid && root.active.ssid.toLowerCase().trim() === root.pendingConnection.ssid.toLowerCase().trim()) {
+                const pending = root.pendingConnection;
+                root.pendingConnection = null;
+                connectionCheckTimer.stop();
+                immediateCheckTimer.stop();
+                immediateCheckTimer.checkCount = 0;
+                root.connectionSuccessful(pending.ssid);
+                if (pending.callback && typeof pending.callback === "function") {
+                    pending.callback({ success: true, output: "Connected", error: "", exitCode: 0 });
+                }
+            }
+        } else if (root.active !== null) {
+            root.active = null;
+        }
+    }
 
     function rebuildNetworkList(): void {
         const rawList = NmQt.networks;
         const newList = [];
+        const oldMap = new Map();
 
-        for (let i = 0; i < rawList.length; i++) {
-            const existing = __networks[i];
-            if (existing) {
-                existing.lastIpcObject = rawList[i];
-                newList.push(existing);
-            } else {
-                newList.push(apComp.createObject(root, { lastIpcObject: rawList[i] }));
+        for (let i = 0; i < __networks.length; i++) {
+            const ap = __networks[i];
+            if (ap && ap.ssid) {
+                const key = ap.bssid || ap.ssid;
+                oldMap.set(key, ap);
             }
         }
 
-        for (let j = newList.length; j < __networks.length; j++) {
-            __networks[j].destroy();
+        for (let i = 0; i < rawList.length; i++) {
+            const raw = rawList[i];
+            const key = raw.bssid || raw.ssid;
+            const existing = oldMap.get(key);
+            if (existing) {
+                existing.lastIpcObject = raw;
+                newList.push(existing);
+                oldMap.delete(key);
+            } else {
+                newList.push(apComp.createObject(root, { lastIpcObject: raw }));
+            }
         }
+
+        oldMap.forEach(ap => {
+            ap.destroy();
+        });
 
         root.__networks = newList;
     }
@@ -185,8 +235,6 @@ Singleton {
         return !!state && state.startsWith("connecting");
     }
 
-    function connectingSsid(): string { return NmQt.connectingSsid; }
-
     function executeCommand(args: list<string>, callback: var): void {
         if (callback && typeof callback === "function")
             callback({ success: false, output: "", error: "executeCommand removed - use NmQt", exitCode: -1 });
@@ -196,12 +244,6 @@ Singleton {
         if (callback && typeof callback === "function")
             callback({ success: false, output: "", error: "executeShellCommand removed - use NmQt", exitCode: -1 });
     }
-
-    function getDeviceStatus(callback: var): void { if (callback && typeof callback === "function") callback(""); }
-    function getWirelessInterfaces(callback: var): void { root.wirelessInterfaces = []; if (callback && typeof callback === "function") callback([]); }
-    function getEthernetInterfaces(callback: var): void { root.ethernetInterfaces = []; if (callback && typeof callback === "function") callback([]); }
-    function getAllInterfaces(callback: var): void { if (callback && typeof callback === "function") callback([]); }
-    function isInterfaceConnected(interfaceName: string, callback: var): void { if (callback && typeof callback === "function") callback(false); }
 
     function connectEthernet(connectionName: string, interfaceName: string, callback: var): void {
         NmQt.connectEthernet(connectionName, interfaceName, callback);
@@ -214,18 +256,26 @@ Singleton {
     function connectToNetworkWithPasswordCheck(ssid: string, isSecure: bool, callback: var, bssid: string): void {
         let immediateResult = null;
         const wrappedCallback = result => {
-            if (result && result.success)
-                return;
-
             immediateResult = result;
-            root.pendingConnection = null;
-            connectionCheckTimer.stop();
-            immediateCheckTimer.stop();
-            immediateCheckTimer.checkCount = 0;
-            if (callback && typeof callback === "function") callback(result);
+            if (result && !result.success) {
+                root.pendingConnection = null;
+                connectionCheckTimer.stop();
+                immediateCheckTimer.stop();
+                immediateCheckTimer.checkCount = 0;
+                root.connectionFailed(ssid);
+                if (callback && typeof callback === "function") callback(result);
+            } else if (result && result.needsPassword) {
+                root.pendingConnection = null;
+                connectionCheckTimer.stop();
+                immediateCheckTimer.stop();
+                immediateCheckTimer.checkCount = 0;
+                if (callback && typeof callback === "function") callback(result);
+            }
+            // If success is true and needsPassword is false, do not stop timers.
+            // Wait for active connection state to update.
         };
         NmQt.connectToNetworkWithPasswordCheck(ssid, isSecure, wrappedCallback, bssid);
-        if (callback && !immediateResult) {
+        if (!immediateResult) {
             root.pendingConnection = { ssid: ssid, bssid: bssid || "", callback: callback };
             connectionCheckTimer.start();
             immediateCheckTimer.checkCount = 0;
@@ -236,18 +286,20 @@ Singleton {
     function connectToNetwork(ssid: string, password: string, bssid: string, callback: var): void {
         let immediateResult = null;
         const wrappedCallback = result => {
-            if (result && result.success)
-                return;
-
             immediateResult = result;
-            root.pendingConnection = null;
-            connectionCheckTimer.stop();
-            immediateCheckTimer.stop();
-            immediateCheckTimer.checkCount = 0;
-            if (callback && typeof callback === "function") callback(result);
+            if (result && !result.success) {
+                root.pendingConnection = null;
+                connectionCheckTimer.stop();
+                immediateCheckTimer.stop();
+                immediateCheckTimer.checkCount = 0;
+                root.connectionFailed(ssid);
+                if (callback && typeof callback === "function") callback(result);
+            }
+            // If success is true, do not stop timers.
+            // Wait for active connection state to update.
         };
         NmQt.connectToNetwork(ssid, password, bssid, wrappedCallback);
-        if (callback && !immediateResult) {
+        if (!immediateResult) {
             root.pendingConnection = { ssid: ssid, bssid: bssid || "", callback: callback };
             connectionCheckTimer.start();
             immediateCheckTimer.checkCount = 0;
@@ -278,8 +330,6 @@ Singleton {
         if (callback && typeof callback === "function") callback(root.savedConnectionSsids);
     }
 
-    function parseNameTypeOutput(output: string): list<var> { return []; }
-
     function isVpnConnectionType(type: string): bool {
         const normalized = (type || "").toLowerCase().trim();
         return normalized === root.connectionTypeVpn || normalized === root.connectionTypeWireGuard;
@@ -294,7 +344,6 @@ Singleton {
         if (callback && typeof callback === "function") callback(root.savedConnectionSsids);
     }
 
-    function processSsidOutput(output: string): void { } // no-op
     function hasSavedProfile(ssid: string): bool { return NmQt.hasSavedProfile(ssid); }
     function forgetNetwork(ssid: string, callback: var): void { NmQt.forgetNetwork(ssid, callback); }
 
@@ -304,10 +353,6 @@ Singleton {
     }
 
     function disconnectFromNetwork(): void { NmQt.disconnectFromNetwork(); }
-
-    function getDeviceDetails(interfaceName: string, callback: var): void {
-        if (callback && typeof callback === "function") callback("");
-    }
 
     function refreshStatus(callback: var): void {
         if (callback && typeof callback === "function") {
@@ -362,22 +407,113 @@ Singleton {
         NmQt.getEthernetDeviceDetails(interfaceName, callback);
     }
 
-    function parseDeviceDetails(output: string, isEthernet: bool): var {
-        return { ipAddress: "", gateway: "", dns: [], subnet: "", macAddress: "", speed: "" };
-    }
-
     function refreshOnConnectionChange(): void {
         emit: monitorEvent();
+    }
+
+    // =========================================================================
+    //  Upstream-sync parity surface (network page rewrite)
+    // =========================================================================
+
+    function findNetwork(ssid: string): var {
+        return networks.find(n => n.ssid === ssid) ?? null;
+    }
+
+    function securityLabel(keyMgmt: string): string {
+        switch ((keyMgmt || "").trim().toLowerCase()) {
+        case "":
+        case "none":
+            return qsTr("Open");
+        case "sae":
+            return "WPA3";
+        case "wpa-psk":
+            return "WPA2";
+        case "wpa-eap":
+        case "wpa-eap-suite-b-192":
+            return qsTr("Enterprise");
+        case "owe":
+            return qsTr("Enhanced Open");
+        case "ieee8021x":
+            return "802.1X";
+        default:
+            return keyMgmt.trim();
+        }
+    }
+
+    function savedSecurityFor(ssid: string): string {
+        if (!ssid || ssid.length === 0) return "";
+        return (root.savedConnectionSecurity || {})[ssid.toLowerCase().trim()] || "";
+    }
+
+    function getEthernetInterfaces(callback: var): void {
+        const names = root.__ethernetDevices.map(d => d.iface);
+        if (callback && typeof callback === "function") callback(names);
+    }
+
+    function getEthernetSpeed(interfaceName: string): void {
+        root.ethernetSpeed = NmQt.ethernetSpeed(interfaceName);
+    }
+
+    function getEthernetDataUsage(interfaceName: string, callback: var): void {
+        root.ethernetDataUsage = NmQt.ethernetDataUsage(interfaceName);
+        if (callback && typeof callback === "function") callback(root.ethernetDataUsage);
+    }
+
+    function getIpv4Config(connectionName: string, callback: var): void {
+        NmQt.getIpv4Config(connectionName, callback);
+    }
+
+    function setIpv4Config(connectionName: string, config: var, callback: var): void {
+        NmQt.setIpv4Config(connectionName, config, callback);
+    }
+
+    function setAutoconnect(connectionName: string, enabled: bool, callback: var): void {
+        NmQt.setAutoconnect(connectionName, enabled, callback);
+    }
+
+    function addHiddenNetwork(ssid: string, password: string, security: string, hidden: bool, callback: var): void {
+        NmQt.addHiddenNetwork(ssid, password, security, hidden, callback);
+    }
+
+    function rebuildEthernetDevices(): void {
+        const rawList = NmQt.ethernetDevices;
+        const newList = [];
+
+        for (let i = 0; i < rawList.length; i++) {
+            const existing = __ethernetDevices[i];
+            if (existing) {
+                existing.lastIpcObject = rawList[i];
+                newList.push(existing);
+            } else {
+                newList.push(ethDevComp.createObject(root, { lastIpcObject: rawList[i] }));
+            }
+        }
+
+        for (let j = newList.length; j < __ethernetDevices.length; j++) {
+            __ethernetDevices[j].destroy();
+        }
+
+        root.__ethernetDevices = newList;
     }
 
     // NmQt populates its own network cache in its C++ constructor, before this
     // Connections block exists to observe networksChanged — without this, the
     // adapter's list stays empty until NetworkManager emits another change.
-    Component.onCompleted: rebuildNetworkList()
+    Component.onCompleted: {
+        rebuildNetworkList();
+        rebuildEthernetDevices();
+        rebuildActive();
+    }
+
+
 
     Connections {
         function onNetworksChanged(): void {
             rebuildNetworkList();
+            rebuildActive();
+        }
+        function onEthernetDevicesChanged(): void {
+            rebuildEthernetDevices();
         }
         function onWifiEnabledChanged(): void {
             root.wifiEnabled = NmQt.wifiEnabled;
@@ -394,6 +530,10 @@ Singleton {
         function onConnectionFailed(ssid: string): void {
             root.connectionFailed(ssid);
         }
+        function onActiveChanged(): void {
+            rebuildNetworkList();
+            rebuildActive();
+        }
 
         target: NmQt
     }
@@ -401,11 +541,11 @@ Singleton {
     Timer {
         id: connectionCheckTimer
 
-        interval: 4000
+        interval: 20000
 
         onTriggered: {
             if (root.pendingConnection) {
-                const connected = root.active && root.active.ssid === root.pendingConnection.ssid;
+                const connected = root.active && root.active.ssid && root.active.ssid.toLowerCase().trim() === root.pendingConnection.ssid.toLowerCase().trim();
                 if (!connected) {
                     const pending = root.pendingConnection;
                     const failedSsid = pending.ssid;
@@ -420,9 +560,16 @@ Singleton {
                         });
                     }
                 } else {
+                    const pending = root.pendingConnection;
                     root.pendingConnection = null;
                     immediateCheckTimer.stop();
                     immediateCheckTimer.checkCount = 0;
+                    root.connectionSuccessful(pending.ssid);
+                    if (pending.callback && typeof pending.callback === "function") {
+                        pending.callback({
+                            success: true, output: "Connected", error: "", exitCode: 0
+                        });
+                    }
                 }
             }
         }
@@ -439,17 +586,19 @@ Singleton {
         onTriggered: {
             if (root.pendingConnection) {
                 checkCount++;
-                const connected = root.active && root.active.ssid === root.pendingConnection.ssid;
+                const connected = root.active && root.active.ssid && root.active.ssid.toLowerCase().trim() === root.pendingConnection.ssid.toLowerCase().trim();
                 if (connected) {
                     connectionCheckTimer.stop();
                     immediateCheckTimer.stop();
                     immediateCheckTimer.checkCount = 0;
-                    if (root.pendingConnection.callback && typeof root.pendingConnection.callback === "function") {
-                        root.pendingConnection.callback({
+                    const pending = root.pendingConnection;
+                    root.pendingConnection = null;
+                    root.connectionSuccessful(pending.ssid);
+                    if (pending.callback && typeof pending.callback === "function") {
+                        pending.callback({
                             success: true, output: "Connected", error: "", exitCode: 0
                         });
                     }
-                    root.pendingConnection = null;
                 } else if (checkCount >= 6) {
                     immediateCheckTimer.stop();
                     immediateCheckTimer.checkCount = 0;
@@ -477,6 +626,12 @@ Singleton {
         AccessPoint {}
     }
 
+    Component {
+        id: ethDevComp
+
+        EthernetDevice {}
+    }
+
     component AccessPoint: QtObject {
         required property var lastIpcObject
 
@@ -487,5 +642,28 @@ Singleton {
         readonly property bool active: lastIpcObject.active ?? false
         readonly property string security: lastIpcObject.security ?? ""
         readonly property bool isSecure: (lastIpcObject.security ?? "").length > 0
+    }
+
+    component EthernetDevice: QtObject {
+        required property var lastIpcObject
+
+        readonly property string iface: lastIpcObject.interface ?? ""
+        readonly property string type: lastIpcObject.type ?? ""
+        readonly property string state: deviceStateName(lastIpcObject.state)
+        readonly property string connection: lastIpcObject.connection ?? ""
+        readonly property bool connected: lastIpcObject.connected ?? false
+        readonly property string ipAddress: lastIpcObject.ipAddress ?? ""
+        readonly property string gateway: lastIpcObject.gateway ?? ""
+        readonly property var dns: lastIpcObject.dns ?? []
+        readonly property string subnet: lastIpcObject.subnet ?? ""
+        readonly property string macAddress: lastIpcObject.macAddress ?? ""
+        readonly property string speed: lastIpcObject.speed ?? ""
+
+        function deviceStateName(state: var): string {
+            const names = ["unknown", "unmanaged", "unavailable", "disconnected", "prepare", "config", "need-auth", "ip-config", "ip-check", "secondaries", "activated", "deactivating", "failed"];
+            if (typeof state === "number" && state >= 0 && state < names.length)
+                return names[state];
+            return state ?? "unknown";
+        }
     }
 }

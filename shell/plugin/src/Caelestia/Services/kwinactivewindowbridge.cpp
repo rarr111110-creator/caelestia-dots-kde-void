@@ -1,8 +1,11 @@
 #include "kwinactivewindowbridge.hpp"
 #include "plasmawindows.hpp"
+#include <QDBusMessage>
+#include <QDBusConnection>
 #include "kwinworkspacestate.hpp"
 #include <QGuiApplication>
 #include <QScreen>
+#include <QTimer>
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusMessage>
 
@@ -41,6 +44,42 @@ QVariantList KWinActiveWindowBridge::windowList() const {
     return m_windowList;
 }
 
+QVariantList KWinActiveWindowBridge::windowsForWorkspace(const QVariant& workspace, bool includeOnAllWorkspaces) const {
+    const bool hasNumberTarget = workspace.type() == QVariant::Int && workspace.toInt() > 0;
+    const bool hasStringTarget = workspace.type() == QVariant::String && !workspace.toString().isEmpty();
+
+    QVariantList out;
+    for (const QVariant& v : m_windowList) {
+        const QVariantMap window = v.toMap();
+        const QVariantMap ws = window.value("workspace").toMap();
+        if (ws.isEmpty()) { // No workspace info: can't rule it out.
+            out.push_back(v);
+            continue;
+        }
+        const QVariant id = ws.value("id");
+        const QString uuid = ws.value("uuid").toString();
+        const bool onAll = (id.type() == QVariant::Int && id.toInt() == -1) || uuid.isEmpty();
+        if (onAll) {
+            if (includeOnAllWorkspaces)
+                out.push_back(v);
+            continue;
+        }
+        if (!hasNumberTarget && !hasStringTarget) {
+            out.push_back(v);
+            continue;
+        }
+        if (hasNumberTarget && id.type() == QVariant::Int && id.toInt() == workspace.toInt()) {
+            out.push_back(v);
+            continue;
+        }
+        if (hasStringTarget && uuid == workspace.toString()) {
+            out.push_back(v);
+            continue;
+        }
+    }
+    return out;
+}
+
 QString KWinActiveWindowBridge::pendingFocusAddress() const {
     return m_pendingFocusAddress;
 }
@@ -70,6 +109,79 @@ void KWinActiveWindowBridge::scheduleWindowListUpdate() {
     if (!m_updateTimer.isActive()) {
         m_updateTimer.start();
     }
+}
+
+void KWinActiveWindowBridge::sendToOutput(const QString &address, const QString &outputName) {
+    if (address.isEmpty() || outputName.isEmpty()) {
+        return;
+    }
+
+    QScreen *target = nullptr;
+    for (QScreen *screen : QGuiApplication::screens()) {
+        if (screen->name() == outputName) {
+            target = screen;
+            break;
+        }
+    }
+    if (!target) {
+        return;
+    }
+
+    QVariantMap window;
+    for (const QVariant &entry : m_windowList) {
+        const QVariantMap map = entry.toMap();
+        if (map.value(QStringLiteral("address")).toString() == address) {
+            window = map;
+            break;
+        }
+    }
+    if (window.isEmpty()) {
+        return;
+    }
+
+    const QString currentName = window.value(QStringLiteral("output")).toString();
+    QScreen *current = nullptr;
+    for (QScreen *screen : QGuiApplication::screens()) {
+        if (screen->name() == currentName) {
+            current = screen;
+            break;
+        }
+    }
+    if (!current || current == target) {
+        return;
+    }
+
+    // KWin's own "move the window one screen over" actions, driven through
+    // kglobalaccel.
+    //
+    // There is no direct way to ask for this: plasma-window-management moves a
+    // window between desktops but not between outputs, and no D-Bus interface
+    // exposes it either. These actions do exactly the right thing, they are
+    // part of KWin proper rather than anything this shell has to install, and
+    // they need no privilege. The cost is that they act on the active window,
+    // so the window has to be focused first -- which is what dragging a window
+    // to another monitor implies anyway.
+    const QPoint from = current->geometry().center();
+    const QPoint to = target->geometry().center();
+    QString action;
+    if (qAbs(to.x() - from.x()) >= qAbs(to.y() - from.y())) {
+        action = to.x() > from.x() ? QStringLiteral("Window One Screen to the Right")
+                                   : QStringLiteral("Window One Screen to the Left");
+    } else {
+        action = to.y() > from.y() ? QStringLiteral("Window One Screen Down")
+                                   : QStringLiteral("Window One Screen Up");
+    }
+
+    focusWindow(address);
+
+    // Focus has to have landed before the action fires, or it moves whatever
+    // was focused before.
+    QTimer::singleShot(120, this, [action]() {
+        QDBusMessage msg = QDBusMessage::createMethodCall("org.kde.kglobalaccel", "/component/kwin",
+            "org.kde.kglobalaccel.Component", "invokeShortcut");
+        msg << action;
+        QDBusConnection::sessionBus().call(msg, QDBus::NoBlock);
+    });
 }
 
 QString KWinActiveWindowBridge::getOutputNameForGeometry(int x, int y, int w, int h) const {
@@ -155,7 +267,14 @@ void KWinActiveWindowBridge::buildWindowList() {
     if (activeWindowFound && m_activeWindow != newActiveWindow) {
         m_activeWindow = newActiveWindow;
         emit activeWindowChanged();
-        
+
+        // Keep activeOutputName in sync so Hypr.focusedMonitor resolves correctly
+        // on multi-monitor setups. Without this it stays empty forever and the QML
+        // fallback always picks monitor index 0.
+        const QString newOutput = newActiveWindow.value("output").toString();
+        if (!newOutput.isEmpty())
+            setActiveOutputName(newOutput);
+
         if (m_activeWindow.value("address").toString() == m_pendingFocusAddress) {
             m_pendingFocusAddress.clear();
             emit pendingFocusAddressChanged();
@@ -190,7 +309,13 @@ void KWinActiveWindowBridge::minimizeWindow(const QString &address) {
 
 void KWinActiveWindowBridge::maximizeWindow(const QString &address, bool horz, bool vert) {
     if (auto* handle = PlasmaWindows::instance()->handleFor(address)) {
-        handle->set_state(QtWayland::org_kde_plasma_window_management::state_maximized, QtWayland::org_kde_plasma_window_management::state_maximized);
+        const auto max = QtWayland::org_kde_plasma_window_management::state_maximized;
+        // The plasma-window-management protocol exposes only a combined maximized
+        // state — there are no per-axis (horz/vert) flags in the state enum — so
+        // any maximize request maps onto the combined flag. The only caller
+        // (windowinfo/Buttons.qml) passes both axes equal, so this preserves the
+        // maximize/restore behaviour.
+        handle->set_state((horz || vert) ? max : 0, max);
     }
 }
 

@@ -150,7 +150,7 @@ if [ "$CURRENT_BRANCH" = "main" ]; then
     [ -n "$FROM_VERSION" ] || FROM_VERSION="unknown"
     FROM_VERSION="$(normalize_version "$FROM_VERSION")"
 
-    TAG_LINES="$(git -C "$REPO" for-each-ref --sort=-creatordate --format='%(refname:short)|%(creatordate:iso8601-strict)' refs/tags 2>/dev/null || true)"
+    TAG_LINES="$(git -C "$REPO" for-each-ref --sort=-creatordate --format='%(refname:short)|%(creatordate:iso8601-strict)' 'refs/tags/v*' 2>/dev/null || true)"
     LATEST_VERSION="$(printf '%s\n' "$TAG_LINES" | sed -n '1s/|.*//p')"
     PREVIOUS_VERSION="$(printf '%s\n' "$TAG_LINES" | sed -n '2s/|.*//p')"
     [ -n "$LATEST_VERSION" ] || LATEST_VERSION="$FROM_VERSION"
@@ -229,7 +229,7 @@ def fetch_releases() -> list:
         return []
 
 try:
-    raw_tags = run_git("for-each-ref", "--sort=-creatordate", "--format=%(refname:short)|%(creatordate:iso8601-strict)", "refs/tags")
+    raw_tags = run_git("for-each-ref", "--sort=-creatordate", "--format=%(refname:short)|%(creatordate:iso8601-strict)", "refs/tags/v*")
 except Exception:
     raise SystemExit(0)
 
@@ -418,8 +418,8 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
         root.updateCancelled = true;
         updateProcess.running = false;
         root.updateRunning = false;
-        root.updateStatus = qsTr("Cancelled");
-        root.updateLogs += "\n[Cancelled by user]";
+        root.updateStatus = qsTr("Canceled");
+        root.updateLogs += "\n[Canceled by user]";
     }
 
     // Process to read local commit and saved branch
@@ -815,7 +815,7 @@ echo "$INSTALLED|$LATEST"
             root.lastUpdateOutputMs = 0;
             if (root.updateCancelled) {
                 root.updateCancelled = false;
-                root.updateStatus = qsTr("Cancelled");
+                root.updateStatus = qsTr("Canceled");
                 return;
             }
             if (code === 0) {

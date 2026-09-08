@@ -182,7 +182,7 @@ StyledRect {
                 StyledText {
                     animate: true
                     text: root.activeNotifs[0]?.timeStr ?? ""
-                    color: Colours.palette.m3onSurfaceVariant
+                    color: Colours.palette.m3outline
                     font: Tokens.font.body.small
                 }
 

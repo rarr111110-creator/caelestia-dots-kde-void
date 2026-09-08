@@ -3,8 +3,24 @@
 
 set -uo pipefail
 
-log()  { echo -e "\033[0;36m[INFO]\033[0m $*"; }
-err()  { echo -e "\033[0;31m[ERR]\033[0m  $*"; }
+log()  { printf '  [INFO]  %s\n' "$*"; }
+err()  { printf '  [ERR]   %s\n' "$*" >&2; }
+
+# Return the download URL of the Darkly prebuilt RPM matching this Fedora
+# version from the latest GitHub release (https://github.com/Bali10050/Darkly/releases).
+darkly_rpm_asset_url() {
+    local release_json ver url
+    release_json="$(curl -fsSL "https://api.github.com/repos/Bali10050/Darkly/releases/latest" 2>/dev/null || true)"
+    [[ -n "$release_json" ]] || return 1
+    ver="$(rpm -E %fedora 2>/dev/null | tr -d '[:space:]')"
+    if [[ -n "$ver" ]]; then
+        url="$(printf '%s' "$release_json" | grep -oE "https://[^\"]*\.fc${ver}\.x86_64\.rpm" | head -n1)"
+        [[ -n "$url" ]] && { echo "$url"; return 0; }
+    fi
+    url="$(printf '%s' "$release_json" | grep -oE 'https://[^"]*\.fc[0-9]+\.x86_64\.rpm' | head -n1)"
+    [[ -n "$url" ]] && { echo "$url"; return 0; }
+    return 1
+}
 
 log "Installing Fedora packages..."
 
@@ -16,9 +32,9 @@ INSTALL_DARKLY="${INSTALL_DARKLY:-true}"
 PACKAGE_GROUP="${PACKAGE_GROUP:-all}"
 
 CORE_PACKAGES=(
-    cmake ninja-build ccache
+    cmake ninja-build ccache qt6-qttools-devel
     wl-clipboard cliphist wl-clip-persist inotify-tools wireplumber trash-cli jq aubio lm_sensors lm_sensors-devel
-    pipewire-devel glibc qt6-qtdeclarative qt6-qtdeclarative-devel qt6-qtwayland qt6-qtwayland-devel kf6-kglobalaccel-devel qt6-qtbase-private-devel qt6-qtsvg qt6-qtsvg-devel qt6-qtshadertools-devel libgcc qt6-qtbase libqalculate libqalculate-devel aubio-devel kf6-kpipewire kf6-kpipewire-devel kf6-kwindowsystem-devel kf6-networkmanager-qt-devel libsecret vulkan-headers
+    pipewire-devel glibc qt6-qtdeclarative qt6-qtdeclarative-devel qt6-qtwayland qt6-qtwayland-devel kf6-kglobalaccel-devel qt6-qtbase-private-devel qt6-qtsvg qt6-qtsvg-devel qt6-qtshadertools-devel libgcc qt6-qtbase libqalculate libqalculate-devel aubio-devel kf6-kpipewire kf6-kpipewire-devel kf6-kwindowsystem-devel kf6-networkmanager-qt-devel libsecret vulkan-headers ksshaskpass
 )
 
 SHELL_PACKAGES=(
@@ -168,26 +184,6 @@ for pkg in "${COPR_PKGS[@]}"; do
 
     log "Copr fallback failed or not defined for $pkg. Attempting manual build..."
     case "$pkg" in
-        libcava)
-            tmpdir="$(mktemp -d)"
-            sudo dnf install -y alsa-lib-devel fftw-devel pulseaudio-libs-devel iniparser-devel meson ninja-build cmake gcc-c++
-            if git clone --depth 1 https://github.com/LukashonakV/cava "$tmpdir"; then
-                (
-                    cd "$tmpdir" || exit 1
-                    if [ -f "meson.build" ]; then
-                        meson setup build && meson compile -C build && sudo meson install -C build
-                    elif [ -f "CMakeLists.txt" ]; then
-                        cmake -B build && cmake --build build && sudo cmake --install build
-                    else
-                        ./autogen.sh && ./configure && make && sudo make install
-                    fi
-                ) || { err "Manual build for $pkg failed."; FAILED_PKGS+=("$pkg"); }
-            else
-                err "Failed to clone $pkg."
-                FAILED_PKGS+=("$pkg")
-            fi
-            rm -rf "$tmpdir"
-            ;;
         app2unit)
             tmpdir="$(mktemp -d)"
             sudo dnf install -y make
@@ -267,18 +263,35 @@ unzip -qo "/tmp/JetBrainsMono.zip" -d "${XDG_DATA_HOME:-$HOME/.local/share}/font
 
 fc-cache -f
 
-log "Building and Installing Darkly KDE Theme..."
+log "Installing Darkly KDE Theme from COPR..."
 if [[ "$INSTALL_DARKLY" == "true" ]]; then
-    if ! command -v darkly >/dev/null 2>&1; then
-        tmpdir="$(mktemp -d)"
-        sudo dnf install -y cmake extra-cmake-modules gettext kf6-kconfig-devel kf6-kconfigwidgets-devel kf6-kcoreaddons-devel kf6-kguiaddons-devel kf6-ki18n-devel kf6-kiconthemes-devel kf6-kio-devel kf6-kwidgetsaddons-devel kf6-kwindowsystem-devel qt6-qtbase-devel qt6-qtdeclarative-devel || true
-        if git clone --depth 1 https://github.com/Bali10050/Darkly "$tmpdir"; then
-            (
-                cd "$tmpdir" || exit 1
-                cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j"$(nproc)" && sudo cmake --install build
-            ) || err "Failed to build Darkly theme from source."
+    if ! command -v darkly >/dev/null 2>&1 && ! rpm -q darkly >/dev/null 2>&1; then
+        if ! sudo dnf install -y darkly 2>/dev/null; then
+            log "Enabling Darkly COPR (deltacopy/darkly)..."
+            if ! (sudo dnf copr enable -y deltacopy/darkly && sudo dnf install -y darkly); then
+                log "COPR install failed; falling back to prebuilt RPM from GitHub releases..."
+                _darkly_rpm="$(darkly_rpm_asset_url || true)"
+                if [[ -n "$_darkly_rpm" ]]; then
+                    sudo dnf install -y "$_darkly_rpm" || err "Failed to install Darkly RPM."
+                else
+                    err "No prebuilt Darkly RPM found for this Fedora version."
+                fi
+            fi
         fi
     fi
+
+    log "Installing Darkly GTK theme..."
+    sudo dnf install -y sassc || true
+    tmpdir="$(mktemp -d)"
+    if git clone --depth 1 https://github.com/wrymt/darkly-gtk "$tmpdir"; then
+        (
+            cd "$tmpdir" || exit 1
+            ./install.sh -l || err "Failed to install Darkly GTK theme."
+        )
+    else
+        err "Failed to clone Darkly GTK theme."
+    fi
+    rm -rf "$tmpdir"
 else
     log "Skipping Darkly package installation by user choice."
 fi

@@ -89,7 +89,7 @@ StyledRect {
 
         sourceComponent: StyledText {
             text: String(root.modelData?.body ?? "").replace(/\n/g, " ")
-            color: root.modelData?.urgency === "critical" ? Colours.palette.m3secondary : Colours.palette.m3onSurfaceVariant
+            color: root.modelData?.urgency === "critical" ? Colours.palette.m3secondary : Colours.palette.m3outline
             elide: Text.ElideRight
         }
     }
@@ -104,7 +104,7 @@ StyledRect {
         sourceComponent: StyledText {
             animate: true
             text: root.modelData?.timeStr ?? ""
-            color: Colours.palette.m3onSurfaceVariant
+            color: Colours.palette.m3outline
             font: Tokens.font.body.small
         }
     }
@@ -136,7 +136,7 @@ StyledRect {
             Layout.fillWidth: true
             textFormat: Text.MarkdownText
             text: String(root.modelData?.body ?? "").replace(/(.)\n(?!\n)/g, "$1\n\n") || qsTr("No body here! :/")
-            color: root.modelData?.urgency === "critical" ? Colours.palette.m3secondary : Colours.palette.m3onSurfaceVariant
+            color: root.modelData?.urgency === "critical" ? Colours.palette.m3secondary : Colours.palette.m3outline
             wrapMode: Text.WordWrap
 
             onLinkActivated: link => {

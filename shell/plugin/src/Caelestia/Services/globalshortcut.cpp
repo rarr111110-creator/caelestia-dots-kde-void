@@ -1,6 +1,6 @@
 #include "globalshortcut.hpp"
 
-#include "../Config/config.hpp"
+#include "../Config/rootnodes.hpp"
 #include "../Config/generalconfig.hpp"
 #include <KGlobalAccel>
 #include <QCoreApplication>
@@ -59,7 +59,7 @@ bool isLockscreen() {
     static bool result = false;
     if (!checked) {
         checked = true;
-        
+
         QFile cmdline(QStringLiteral("/proc/self/cmdline"));
         if (cmdline.open(QIODevice::ReadOnly)) {
             QByteArray data = cmdline.readAll();
@@ -71,7 +71,7 @@ bool isLockscreen() {
                 }
             }
         }
-        
+
         if (result) {
             qDebug() << "[Caelestia] Running as lockscreen — global shortcut stealing disabled";
         }

@@ -155,6 +155,65 @@ Item {
         root.modelDataArray = newArr;
     }
 
+    function handleWheel(angleDelta: point): void {
+        scrollByWheel(angleDelta, Qt.point(0, 0));
+    }
+
+    function scrollByWheel(angleDelta: point, pixelDelta: point): void {
+        if (root.isDragging) return;
+
+        const isH = bar.isHorizontal;
+        const fullSpan = Math.max(isH ? listView.contentWidth : listView.contentHeight, container.__computedContentWidth);
+        const viewSpan = isH ? listView.width : listView.height;
+        const maxScroll = Math.max(0, fullSpan - viewSpan);
+        if (maxScroll <= 0) return;
+
+        const rawDelta = isH
+            ? (Math.abs(angleDelta.x) > Math.abs(angleDelta.y) ? angleDelta.x : angleDelta.y)
+            : (Math.abs(angleDelta.y) > Math.abs(angleDelta.x) ? angleDelta.y : angleDelta.x);
+
+        const rawPixel = isH
+            ? (Math.abs(pixelDelta.x) > Math.abs(pixelDelta.y) ? pixelDelta.x : pixelDelta.y)
+            : (Math.abs(pixelDelta.y) > Math.abs(pixelDelta.x) ? pixelDelta.y : pixelDelta.x);
+
+        if (rawPixel !== 0) {
+            scrollAnim.stop();
+            const current = isH ? listView.contentX : listView.contentY;
+            const target = Math.max(0, Math.min(maxScroll, current - rawPixel));
+            if (isH) listView.contentX = target;
+            else listView.contentY = target;
+            root.publishMinimizeGeometry();
+            return;
+        }
+
+        if (rawDelta === 0) return;
+
+        const step = container.itemSize + root.spacing;
+        const scrollAmount = -(rawDelta / 120) * step;
+
+        const current = scrollAnim.running ? scrollAnim.to : (isH ? listView.contentX : listView.contentY);
+        const target = Math.max(0, Math.min(maxScroll, current + scrollAmount));
+
+        scrollAnim.stop();
+        scrollAnim.from = isH ? listView.contentX : listView.contentY;
+        scrollAnim.to = target;
+        scrollAnim.start();
+    }
+
+    function clampScroll(): void {
+        const isH = bar.isHorizontal;
+        const fullSpan = Math.max(isH ? listView.contentWidth : listView.contentHeight, container.__computedContentWidth);
+        const viewSpan = isH ? listView.width : listView.height;
+        const maxScroll = Math.max(0, fullSpan - viewSpan);
+        if (isH) {
+            if (listView.contentX > maxScroll)
+                listView.contentX = maxScroll;
+        } else {
+            if (listView.contentY > maxScroll)
+                listView.contentY = maxScroll;
+        }
+    }
+
     StyledRect {
         id: container
 
@@ -248,9 +307,33 @@ Item {
         Item {
             id: layout
             
-            anchors.centerIn: parent
-            implicitWidth: container.__computedContentWidth
-            implicitHeight: container.__computedContentWidth
+            anchors.fill: parent
+
+            WheelHandler {
+                id: wheelHandler
+
+                target: null
+                orientation: Qt.Vertical | Qt.Horizontal
+
+                onWheel: event => {
+                    root.scrollByWheel(event.angleDelta, event.pixelDelta);
+                }
+            }
+
+            NumberAnimation {
+                id: scrollAnim
+
+                target: listView
+                property: bar.isHorizontal ? "contentX" : "contentY"
+                duration: 180
+                easing.type: Easing.OutCubic
+
+                onRunningChanged: {
+                    if (!running) {
+                        root.publishMinimizeGeometry();
+                    }
+                }
+            }
 
             ListView {
                 id: listView
@@ -262,6 +345,11 @@ Item {
                 spacing: root.spacing
                 interactive: bar.isHorizontal ? contentWidth > width + 1 : contentHeight > height + 1
                 clip: true
+
+                onContentWidthChanged: root.clampScroll()
+                onWidthChanged: root.clampScroll()
+                onContentHeightChanged: root.clampScroll()
+                onHeightChanged: root.clampScroll()
 
                 add: Transition {
                     NumberAnimation { property: "scale"; from: 0; to: 1; duration: 250; easing.type: Easing.OutBack }
@@ -290,7 +378,7 @@ Item {
                 orientation: Qt.Horizontal
                 size: listView.visibleArea.widthRatio
                 position: listView.visibleArea.xPosition
-                shouldBeActive: dockHover.hovered || listView.moving
+                shouldBeActive: dockHover.hovered || listView.moving || scrollAnim.running
                 anchors.left: listView.left
                 anchors.right: listView.right
                 anchors.bottom: listView.bottom
@@ -303,7 +391,7 @@ Item {
                 orientation: Qt.Vertical
                 size: listView.visibleArea.heightRatio
                 position: listView.visibleArea.yPosition
-                shouldBeActive: dockHover.hovered || listView.moving
+                shouldBeActive: dockHover.hovered || listView.moving || scrollAnim.running
                 anchors.top: listView.top
                 anchors.bottom: listView.bottom
                 anchors.right: listView.right
@@ -464,9 +552,8 @@ Item {
                                     const subCmd = modelData.entry.runInTerminal
                                         ? [...GlobalConfig.general.apps.terminal, `${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...modelData.entry.command]
                                         : modelData.entry.command;
-                                    const finalCmd = GlobalConfig.services.useSystemd ? ["app2unit", "--", ...subCmd] : subCmd;
                                     Quickshell.execDetached({
-                                        command: finalCmd,
+                                        command: Launch.wrap(subCmd),
                                         workingDirectory: modelData.entry.workingDirectory
                                     });
                                 }
@@ -626,18 +713,24 @@ Item {
         const itemSize = container.itemSize;
         const itemWidthWithSpacing = itemSize + spacing;
         const adjustedPos = isHorizontal ? relPos - container.x - padding : relPos - container.y - padding;
+        const scrolled = isHorizontal ? listView.contentX : listView.contentY;
+        const visibleSpan = isHorizontal ? listView.width : listView.height;
         
         // Only close if cursor is completely outside dock bounds
-        if (adjustedPos < 0 || adjustedPos >= modelDataArray.length * itemWidthWithSpacing) {
+        if (adjustedPos < 0 || adjustedPos > visibleSpan) {
             bar.popouts.hasCurrent = false;
             return;
         }
         
-        const index = Math.floor(adjustedPos / itemWidthWithSpacing);
+        const index = Math.floor((adjustedPos + scrolled) / itemWidthWithSpacing);
         
         if (index >= 0 && index < modelDataArray.length) {
             bar.popouts.currentName = "dockhover";
-            const centerOffset = index * itemWidthWithSpacing + itemSize / 2;
+            const centerOffset = index * itemWidthWithSpacing + itemSize / 2 - scrolled;
+            if (centerOffset < 0 || centerOffset > visibleSpan) {
+                bar.popouts.hasCurrent = false;
+                return;
+            }
             const absoluteCenter = isHorizontal 
                 ? container.mapToItem(null, padding + centerOffset, 0).x 
                 : container.mapToItem(null, 0, padding + centerOffset).y;
@@ -861,6 +954,14 @@ Item {
 
         function onFavouriteAppsChanged(): void {
             root.rebuildModel();
+        }
+    }
+
+    Connections {
+        target: bar
+
+        function onIsHorizontalChanged(): void {
+            scrollAnim.stop();
         }
     }
 

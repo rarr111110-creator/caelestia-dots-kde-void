@@ -2,7 +2,9 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Caelestia.Config
+import Caelestia.Services
 import qs.components
 import qs.components.controls
 import qs.services
@@ -40,6 +42,12 @@ PageBase {
             text: qsTr("Muted")
             checked: Audio.muted
             onToggled: Audio.setStreamMuted(Audio.sink, checked)
+        }
+
+        ToggleRow {
+            text: qsTr("Show Inactive Devices")
+            checked: Audio.showInactiveDevices
+            onToggled: Audio.showInactiveDevices = checked
         }
 
         AudioDeviceList {
@@ -82,6 +90,39 @@ PageBase {
         }
 
         SectionHeader {
+            text: qsTr("Device Profiles")
+        }
+
+        Repeater {
+            model: Audio.cards
+
+            delegate: SplitButtonRow {
+                id: cardRow
+
+                required property var model
+                readonly property var card: model.PulseObject
+                readonly property var availableProfiles: card?.profiles ? card.profiles.filter(p => p.availability !== 2 || card.profiles.indexOf(p) === card.activeProfileIndex) : []
+
+                label: AudioBackend.cardDescription(card) || card?.properties?.["device.description"] || model.description || card?.name || qsTr("Unknown Device")
+                menuItems: profileVariants.instances
+                active: menuItems.find(item => item.modelData === cardRow.card?.profiles?.[cardRow.card?.activeProfileIndex] || item.text === cardRow.card?.profiles?.[cardRow.card?.activeProfileIndex]?.description) ?? null
+
+                Variants {
+                    id: profileVariants
+
+                    model: cardRow.availableProfiles
+
+                    MenuItem {
+                        required property var modelData
+
+                        text: modelData.description
+                        onClicked: cardRow.card.activeProfileIndex = cardRow.card.profiles.indexOf(modelData)
+                    }
+                }
+            }
+        }
+
+        SectionHeader {
             text: qsTr("Apps")
         }
 
@@ -90,7 +131,7 @@ PageBase {
             last: true
             icon: "tune"
             label: qsTr("App volumes")
-            status: Audio.streams.length === 0 ? qsTr("No apps playing audio") : Audio.streams.length === 1 ? qsTr("1 app playing audio") : qsTr("%1 apps playing audio").arg(Audio.streams.length)
+            status: Audio.appStreams.length === 0 ? qsTr("No apps playing audio") : Audio.appStreams.length === 1 ? qsTr("1 app playing audio") : qsTr("%1 apps playing audio").arg(Audio.appStreams.length)
             onClicked: root.nState.openSubPage(1)
         }
 

@@ -50,7 +50,11 @@ void MinimizeGeometry::setGeometry(QQuickItem* anchor, const QString& uuid, int 
     // surface the rect is declared against.
     const auto key = PlasmaWindows::normaliseUuid(uuid);
     const QRect rect(x, y, width, height);
-    if (m_published.value(key) == rect) {
+    // Key by surface too: two monitors with mirrored docks can compute the
+    // same rect for the same window, and the dedupe must not drop the second
+    // surface's publish.
+    const quintptr surfaceKey = reinterpret_cast<quintptr>(surface);
+    if (m_published.value(key).value(surfaceKey) == rect) {
         return;
     }
 
@@ -64,7 +68,7 @@ void MinimizeGeometry::setGeometry(QQuickItem* anchor, const QString& uuid, int 
     handle->set_minimized_geometry(surface, static_cast<uint32_t>(std::max(0, rect.x())),
         static_cast<uint32_t>(std::max(0, rect.y())), static_cast<uint32_t>(rect.width()),
         static_cast<uint32_t>(rect.height()));
-    m_published.insert(key, rect);
+    m_published[key].insert(surfaceKey, rect);
 }
 
 void MinimizeGeometry::clearGeometry(QQuickItem* anchor, const QString& uuid) {
@@ -80,6 +84,10 @@ void MinimizeGeometry::clearGeometry(QQuickItem* anchor, const QString& uuid) {
     if (auto* surface = anchor ? surfaceFor(anchor->window()) : nullptr) {
         if (auto* handle = PlasmaWindows::instance()->handleFor(key)) {
             handle->unset_minimized_geometry(surface);
+        }
+        m_published[key].remove(reinterpret_cast<quintptr>(surface));
+        if (!m_published.value(key).isEmpty()) {
+            return;
         }
     }
     m_published.remove(key);

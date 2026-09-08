@@ -43,7 +43,7 @@ Item {
             opacity: root.notifCount > 0 ? 1 : 0
 
             text: root.notifCount
-            color: Colours.palette.m3onSurfaceVariant
+            color: Colours.palette.m3outline
             font: Tokens.font.label.large
 
             Behavior on anchors.leftMargin {
@@ -66,7 +66,7 @@ Item {
             anchors.leftMargin: Tokens.spacing.extraSmall
 
             text: root.notifCount > 0 ? qsTr("notification%1").arg(root.notifCount === 1 ? "" : "s") : qsTr("Notifications")
-            color: Colours.palette.m3onSurfaceVariant
+            color: Colours.palette.m3outline
             font: Tokens.font.label.large
             elide: Text.ElideRight
         }
@@ -159,14 +159,14 @@ Item {
                 implicitWidth: implicitHeight
                 implicitHeight: icon.implicitHeight + Tokens.padding.large
                 radius: Tokens.rounding.full
-                color: Visibilities.isCaelestiaMode ? Colours.palette.m3secondary : Colours.palette.m3secondaryContainer
+                color: GlobalConfig.general.caelestiaMode ? Colours.palette.m3secondary : Colours.palette.m3secondaryContainer
                 
                 MaterialIcon {
                     id: icon
 
                     anchors.centerIn: parent
                     text: "auto_awesome"
-                    color: Visibilities.isCaelestiaMode ? Colours.palette.m3onSecondary : Colours.palette.m3onSecondaryContainer
+                    color: GlobalConfig.general.caelestiaMode ? Colours.palette.m3onSecondary : Colours.palette.m3onSecondaryContainer
                     fontStyle: Tokens.font.icon.large
                 }
             }
@@ -177,14 +177,14 @@ Item {
                 
                 StyledText {
                     Layout.fillWidth: true
-                    text: "Caelestia Mode"
+                    text: qsTr("Caelestia Mode")
                     font: Tokens.font.body.medium
                     elide: Text.ElideRight
                 }
                 
                 StyledText {
                     Layout.fillWidth: true
-                    text: Visibilities.isCaelestiaMode ? "Spinning kurukuru activated" : "Classic dinosaur character"
+                    text: GlobalConfig.general.caelestiaMode ? "Spinning kurukuru activated" : "Classic dinosaur character"
                     color: Colours.palette.m3onSurfaceVariant
                     font: Tokens.font.body.small
                     elide: Text.ElideRight
@@ -192,9 +192,9 @@ Item {
             }
             
             StyledSwitch {
-                checked: Visibilities.isCaelestiaMode
+                checked: GlobalConfig.general.caelestiaMode
                 onToggled: {
-                    Visibilities.isCaelestiaMode = checked;
+                    GlobalConfig.general.caelestiaMode = checked;
                 }
             }
         }

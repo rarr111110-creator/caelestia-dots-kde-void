@@ -79,69 +79,6 @@ PageBase {
         }
     ]
 
-    readonly property list<MenuItem> lockShapeItems: [
-        MenuItem {
-            property int value: MaterialShape.Circle
-
-            text: qsTr("Circle")
-        },
-        MenuItem {
-            property int value: MaterialShape.Square
-
-            text: qsTr("Square")
-        },
-        MenuItem {
-            property int value: MaterialShape.Pill
-
-            text: qsTr("Pill")
-        },
-        MenuItem {
-            property int value: MaterialShape.Diamond
-
-            text: qsTr("Diamond")
-        },
-        MenuItem {
-            property int value: MaterialShape.ClamShell
-
-            text: qsTr("Clam Shell")
-        },
-        MenuItem {
-            property int value: MaterialShape.Pentagon
-
-            text: qsTr("Pentagon")
-        },
-        MenuItem {
-            property int value: MaterialShape.Gem
-
-            text: qsTr("Gem")
-        },
-        MenuItem {
-            property int value: MaterialShape.Cookie4Sided
-
-            text: qsTr("Cookie 4-Sided")
-        },
-        MenuItem {
-            property int value: MaterialShape.Cookie6Sided
-
-            text: qsTr("Cookie 6-Sided")
-        },
-        MenuItem {
-            property int value: MaterialShape.Cookie7Sided
-
-            text: qsTr("Cookie 7-Sided")
-        },
-        MenuItem {
-            property int value: MaterialShape.Cookie9Sided
-
-            text: qsTr("Cookie 9-Sided")
-        },
-        MenuItem {
-            property int value: MaterialShape.Cookie12Sided
-
-            text: qsTr("Cookie 12-Sided")
-        }
-    ]
-
     ColumnLayout {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
@@ -170,6 +107,7 @@ PageBase {
         }
 
         SelectRow {
+            last: true
             Layout.fillWidth: true
             label: qsTr("Dashboard profile picture shape")
             subtext: qsTr("Choose the shape of the profile picture on the dashboard")
@@ -185,26 +123,6 @@ PageBase {
             menuItems: dashboardShapeItems
             onSelected: item => {
                 GlobalConfig.dashboard.profilePicShape = item.value
-            }
-        }
-
-        SelectRow {
-            Layout.fillWidth: true
-            last: true
-            label: qsTr("Lock screen profile picture shape")
-            subtext: qsTr("Choose the shape of the profile picture on the lock screen")
-            fallbackIcon: "lock"
-            fallbackText: qsTr("Clam Shell")
-            active: {
-                for (let i = 0; i < lockShapeItems.length; i++) {
-                    if (lockShapeItems[i].value === GlobalConfig.lock.profilePicShape)
-                        return lockShapeItems[i];
-                }
-                return lockShapeItems[0];
-            }
-            menuItems: lockShapeItems
-            onSelected: item => {
-                GlobalConfig.lock.profilePicShape = item.value
             }
         }
 
@@ -248,8 +166,8 @@ PageBase {
 
         ToggleRow {
             Layout.fillWidth: true
-            text: Strings.localizeEnglishSpelling(qsTr("Recolour media GIF"))
-            subtext: Strings.localizeEnglishSpelling(qsTr("Apply system theme colours to the media GIF"))
+            text: qsTr("Recolor media GIF")
+            subtext: qsTr("Apply system theme colors to the media GIF")
             checked: Config.dashboard.colorizeMediaGif
             onToggled: GlobalConfig.dashboard.colorizeMediaGif = checked
         }
@@ -264,8 +182,8 @@ PageBase {
 
         ToggleRow {
             Layout.fillWidth: true
-            text: Strings.localizeEnglishSpelling(qsTr("Randomize shape colours"))
-            subtext: Strings.localizeEnglishSpelling(qsTr("Randomly shift shape colours while morphing"))
+            text: qsTr("Randomize shape colors")
+            subtext: qsTr("Randomly shift shape colors while morphing")
             checked: Config.dashboard.randomizeMediaShapeColors
             onToggled: GlobalConfig.dashboard.randomizeMediaShapeColors = checked
         }
@@ -333,7 +251,7 @@ PageBase {
 
         // Behaviour
         SectionHeader {
-            text: Strings.localizeEnglishSpelling(qsTr("Behaviour"))
+            text: qsTr("Behavior")
         }
 
         StepperRow {

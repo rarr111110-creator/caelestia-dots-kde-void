@@ -16,6 +16,8 @@ StyledRect {
 
     required property int index
     required property int activeWsId
+    /// Screen this overview belongs to; window icons are limited to it.
+    required property string screenName
     required property var occupied
     required property int groupOffset
     readonly property bool isWorkspace: true
@@ -47,6 +49,18 @@ StyledRect {
 
     signal selected()
     signal reselected()
+
+    // Prefer an icon extracted from the window's own _NET_WM_ICON, then fall
+    // back to the themed desktop-entry lookup (same as the overview cards).
+    function windowIconSource(client: var): string {
+        if (!client)
+            return "";
+        const wp = WinIcons.paths[WinIcons.keyFor(client.class, client.pid ?? 0)];
+        if (wp)
+            return "file://" + wp;
+        return client.iconName ? Icons.getAppIcon(client.iconName, "image-missing")
+                               : (client.class ? Icons.getAppIcon(client.class, "image-missing") : "");
+    }
 
     implicitWidth: Math.floor(baseWidth * scaleFactor)
     implicitHeight: indicatorSize
@@ -122,7 +136,7 @@ StyledRect {
             } else {
                 if (typeof KWinWorkspaceState !== "undefined") {
                     const wId = KWinWorkspaceState.workspaces[root.ws - 1]?.id || root.ws.toString();
-                    KWinWorkspaceState.switchTo(wId);
+                    KWinWorkspaceState.switchTo(wId, root.screenName);
                 } else {
                     const isKWin = typeof KWinActiveWindowBridge !== "undefined" && KWinActiveWindowBridge.windowList;
                     if (isKWin) {
@@ -176,8 +190,40 @@ StyledRect {
         opacity: 0.3
     }
     DropArea {
+        id: windowDropArea
+
+        // Remembered because onExited carries no drag argument.
+        property var hovering: null
+
+        function clearHover(): void {
+            if (windowDropArea.hovering) {
+                windowDropArea.hovering.dropTargetScale = 0;
+                windowDropArea.hovering = null;
+            }
+        }
+
         anchors.fill: parent
+        onEntered: drag => {
+            if (!drag.source || drag.source.clientAddress === undefined)
+                return;
+            // An icon dragged out of a thumbnail is a source too, and has no
+            // preview to collapse -- it decides for itself, from how far it has
+            // been lifted.
+            if (!("dropTargetScale" in drag.source))
+                return;
+            // Nothing to preview when it is already here: a card hovering its
+            // own workspace would shrink to say it is about to go somewhere it
+            // already is.
+            if (drag.source.wsId === root.ws)
+                return;
+            windowDropArea.hovering = drag.source;
+            // Fit inside the thumbnail with a little room, so it reads as
+            // landing in the slot rather than filling it exactly.
+            drag.source.dropTargetScale = Math.min(width / Math.max(1, drag.source.width), height / Math.max(1, drag.source.height)) * 0.85;
+        }
+        onExited: windowDropArea.clearHover()
         onDropped: drop => {
+            windowDropArea.clearHover();
             const sourceItem = drop.source;
             if (sourceItem && sourceItem.clientAddress) {
                 if (sourceItem.wsId !== root.ws) {
@@ -210,10 +256,14 @@ StyledRect {
                     let windows = [];
                     const kwinList = root.kwinWindowList; 
                     if (typeof KWinActiveWindowBridge !== "undefined" && kwinList) {
-                        const wins = kwinList;
+                        const wins = KWinActiveWindowBridge.windowsForWorkspace(wsId, false);
                         for (let i = 0; i < wins.length; ++i) {
                             const w = wins[i];
-                            if (w.workspace && (w.workspace.id === wsId || w.workspace.index === wsId) && w["class"] !== "quickshell" && w["class"] !== "plasmashell") {
+                            // windowsForWorkspace already filtered by workspace;
+                            // this strip only shows its own screen.
+                            if (w.output !== root.screenName)
+                                continue;
+                            if (w["class"] !== "quickshell" && w["class"] !== "plasmashell") {
                                 windows.push(w);
                             }
                         }
@@ -236,6 +286,21 @@ StyledRect {
                 required property int index
                 readonly property string clientAddress: modelData.address || ""
                 readonly property int wsId: root.ws
+                /// Whether this icon has been pulled far enough up out of the
+                /// strip to open into the window it stands for.
+                ///
+                /// Measured against where the drag started and switched on two
+                /// thresholds rather than one. Driving it from the slots the drag
+                /// passes over meant it flipped every time one was crossed, and
+                /// each flip tore down and rebuilt the screencast -- the icon
+                /// flickering between itself and the live view. A single
+                /// threshold would do the same to anyone holding near it.
+                property bool expanded: false
+                readonly property real liftedBy: dragHandler.active ? iconDelegate.dragStartY - iconDelegate.y : 0
+                readonly property real windowAspect: {
+                    const w = modelData.width, h = modelData.height;
+                    return (w > 0 && h > 0) ? w / h : 16 / 9;
+                }
                 property real dragStartX: 0
                 property real dragStartY: 0
                 property real dragStartWidth: 0
@@ -247,6 +312,11 @@ StyledRect {
                         if (root.closingWindows[i] === modelData.address) return true;
                     }
                     return false;
+                }
+
+                Component.onCompleted: {
+                    if (modelData && !DesktopEntries.heuristicLookup(modelData.iconName || modelData.class || ""))
+                        WinIcons.request(modelData.class, modelData.title, modelData.pid ?? 0, modelData.address ? String(modelData.address) : "");
                 }
 
                 radius: Tokens.rounding.small
@@ -271,19 +341,40 @@ StyledRect {
                             parent: topLevel
                             x: iconDelegate.dragStartX
                             y: iconDelegate.dragStartY
-                            width: iconDelegate.dragStartWidth
-                            height: iconDelegate.dragStartHeight
                         }
                         PropertyChanges {
                             target: iconDelegate
+                            // Bound rather than set by ParentChange, so growing
+                            // and shrinking follow the drag instead of being
+                            // fixed once when it starts.
+                            height: iconDelegate.expanded ? Math.round(360 / Math.max(0.2, iconDelegate.windowAspect)) : iconDelegate.dragStartHeight
                             opacity: 0.8
+                            width: iconDelegate.expanded ? 360 : iconDelegate.dragStartWidth
                             z: 999
                         }
                     }
                 ]
 
+                onLiftedByChanged: {
+                    if (!dragHandler.active)
+                        iconDelegate.expanded = false;
+                    else if (!iconDelegate.expanded && iconDelegate.liftedBy > 170)
+                        iconDelegate.expanded = true;
+                    else if (iconDelegate.expanded && iconDelegate.liftedBy < 100)
+                        iconDelegate.expanded = false;
+                }
+                // Claimed while open so the card in the grid gives the stream
+                // up; a node feeds one consumer.
+                onExpandedChanged: Visibilities.streamClaim = iconDelegate.expanded ? iconDelegate.clientAddress : ""
+                Component.onDestruction: {
+                    if (iconDelegate.expanded)
+                        Visibilities.streamClaim = "";
+                }
+
                 Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
 
                 DragHandler {
@@ -307,11 +398,18 @@ StyledRect {
                         }
                     }
                 }
-                IconImage {
-                    anchors.centerIn: parent
-                    implicitSize: Math.min(parent.width, parent.height) * 0.6
-                    asynchronous: true
-                    source: modelData.iconName ? Icons.getAppIcon(modelData.iconName, "image-missing") : (modelData.class ? Icons.getAppIcon(modelData.class, "image-missing") : "")
+                WindowPreview {
+                    // Collapsed it is just the icon; lifted out of the strip it
+                    // opens into the window, which is what WindowPreview shows
+                    // once a stream arrives. The icon it falls back to is the
+                    // one the rest of the overview resolves, so a window with no
+                    // desktop entry still shows its own.
+                    active: iconDelegate.expanded
+                    address: iconDelegate.clientAddress
+                    anchors.fill: parent
+                    fallbackIcon: root.windowIconSource(modelData)
+                    fallbackScale: 0.6
+                    sourceAspect: iconDelegate.windowAspect
                 }
                 StateLayer {
                     anchors.fill: parent

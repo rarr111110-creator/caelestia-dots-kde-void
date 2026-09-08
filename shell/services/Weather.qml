@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Caelestia
 import Caelestia.Config
 import qs.utils
@@ -14,6 +15,8 @@ Singleton {
     property var cc
     property list<var> forecast
     property list<var> hourlyForecast
+    property bool citiesLoaded: false
+    property string pendingCoords
     property string locationSearchQuery: ""
     property bool locationSearchLoading: false
     property string locationSearchError: ""
@@ -53,6 +56,60 @@ Singleton {
             parts.push(result.country);
 
         return parts.join(", ");
+    }
+
+    function fixCityName(cityName) {
+        if (!cityName)
+            return "";
+        const mapping = {
+            // Polish
+            "Poznan": "Poznań",
+            "Wroclaw": "Wrocław",
+            "Krakow": "Kraków",
+            "Gdansk": "Gdańsk",
+            "Lodz": "Łódź",
+            "Rzeszow": "Rzeszów",
+            "Torun": "Toruń",
+            "Bialystok": "Białystok",
+            "Czestochowa": "Częstochowa",
+            "Plock": "Płock",
+            "Ruda Slaska": "Ruda Śląska",
+            "Dabrowa Gornicza": "Dąbrowa Górnicza",
+            "Elblag": "Elbląg",
+            "Gorzow Wielkopolski": "Gorzów Wielkopolski",
+            "Zielona Gora": "Zielona Góra",
+            "Slupsk": "Słupsk",
+
+            // German
+            "Munchen": "München",
+            "Koln": "Köln",
+            "Dusseldorf": "Düsseldorf",
+            "Nurnberg": "Nürnberg",
+
+            // French & Spanish & Portuguese
+            "Sao Paulo": "São Paulo",
+            "Montreal": "Montréal",
+            "Quebec": "Québec",
+            "Bogota": "Bogotá",
+            "Medellin": "Medellín",
+            "Cordoba": "Córdoba",
+
+            // Turkish
+            "Istanbul": "İstanbul",
+            "Izmir": "İzmir",
+
+            // Scandinavian & others
+            "Malmo": "Malmö",
+            "Goteborg": "Göteborg",
+            "Zurich": "Zürich",
+            "Geneve": "Genève"
+        };
+        return mapping[cityName] || cityName;
+    }
+
+    function cacheCity(coords, cityName) {
+        cachedCities.set(coords, cityName);
+        citiesSaveTimer.restart();
     }
 
     function queueLocationSearch(query) {
@@ -145,10 +202,10 @@ Singleton {
 
         GlobalConfig.services.weatherLocation = coords;
         loc = coords;
-        if (label)
+        if (label) {
             city = label;
-        if (label)
-            cachedCities.set(coords, label);
+            cacheCity(coords, label);
+        }
 
         if (coords === prevLoc)
             fetchWeatherData();
@@ -190,7 +247,17 @@ Singleton {
             return;
         }
 
+        // Defer until the persisted cache is loaded.
+        if (!citiesLoaded) {
+            pendingCoords = coords;
+            return;
+        }
+
         const [lat, lon] = coords.split(",").map(s => s.trim());
+        const lang = Qt.locale().name.split("_")[0] || "en";
+        const nominatimHeaders = {
+            "User-Agent": `caelestia-shell/${CUtils.version} (+https://github.com/caelestia-dots/shell)`
+        };
 
         const fallbackToBigDataCloud = () => {
             const fallbackUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
@@ -198,31 +265,41 @@ Singleton {
                 const geo = JSON.parse(text);
                 const geoCity = geo.city || geo.locality;
                 if (geoCity) {
-                    city = geoCity;
-                    cachedCities.set(coords, geoCity);
+                    city = fixCityName(geoCity);
+                    cacheCity(coords, city);
                 } else {
-                    city = "Unknown City";
+                    city = qsTr("Unknown City");
                 }
             });
         };
 
-        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=geocodejson`;
+        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=geocodejson&accept-language=${lang}`;
         Requests.get(nominatimUrl, text => {
-            const geo = JSON.parse(text).features?.[0]?.properties.geocoding;
+            let geo;
+            try {
+                geo = JSON.parse(text).features?.[0]?.properties.geocoding;
+            } catch (error) {
+                console.warn(lc, `Unable to parse response from nominatim: ${error}`);
+                fallbackToBigDataCloud();
+                return;
+            }
+
             if (geo) {
                 const geoCity = geo.type === "city" ? geo.name : geo.city;
                 if (geoCity) {
-                    city = geoCity;
-                    cachedCities.set(coords, geoCity);
+                    city = fixCityName(geoCity);
+                    cacheCity(coords, city);
                     return;
                 }
             }
+
             fallbackToBigDataCloud();
-        }, fallbackToBigDataCloud);
+        }, fallbackToBigDataCloud, nominatimHeaders);
     }
 
     function fetchCoordsFromCity(cityName, persistCoords) {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=en&format=json`;
+        const lang = Qt.locale().name.split("_")[0] || "en";
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=${lang}&format=json`;
 
         Requests.get(url, text => {
             const json = JSON.parse(text);
@@ -237,7 +314,7 @@ Singleton {
 
                 loc = coords;
                 city = buildLocationLabel(result) || result.name;
-                cachedCities.set(coords, city);
+                cacheCity(coords, city);
 
                 if (persistCoords)
                     GlobalConfig.services.weatherLocation = coords;
@@ -354,6 +431,14 @@ Singleton {
     }
 
     onLocChanged: fetchWeatherData()
+    onCitiesLoadedChanged: {
+        if (!citiesLoaded || !pendingCoords)
+            return;
+
+        const coords = pendingCoords;
+        pendingCoords = "";
+        fetchCityFromCoords(coords);
+    }
 
     Connections {
         function onWeatherLocationChanged(): void {
@@ -378,7 +463,54 @@ Singleton {
         onTriggered: fetchWeatherData()
     }
 
+    Timer {
+        id: citiesSaveTimer
+
+        interval: 1000
+        onTriggered: {
+            if (!root.citiesLoaded)
+                return;
+
+            const data = {};
+            root.cachedCities.forEach((cityName, coords) => data[coords] = cityName);
+            citiesStorage.setText(JSON.stringify(data));
+        }
+    }
+
     ElapsedTimer {
         id: timer
+    }
+
+    FileView {
+        id: citiesStorage
+
+        printErrors: false
+        path: `${Paths.cache}/cities.json`
+        onLoaded: {
+            try {
+                const data = JSON.parse(text());
+                for (const [coords, cityName] of Object.entries(data))
+                    if (!root.cachedCities.has(coords))
+                        root.cachedCities.set(coords, cityName);
+            } catch (error) {
+                console.warn(lc, `Unable to parse cached cities: ${error}`);
+            }
+
+            root.citiesLoaded = true;
+        }
+        onLoadFailed: err => {
+            root.citiesLoaded = true;
+            if (err === FileViewError.FileNotFound)
+                Qt.callLater(() => setText("{}"));
+            else
+                console.warn(lc, `Unable to load cached cities: ${err}`);
+        }
+    }
+
+    LoggingCategory {
+        id: lc
+
+        name: "caelestia.qml.services.weather"
+        defaultLogLevel: LoggingCategory.Info
     }
 }

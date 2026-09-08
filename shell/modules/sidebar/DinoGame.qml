@@ -153,7 +153,7 @@ Item {
                 height: 109.375
                 source: Paths.absolutePath("root:/assets/dino.png")
                 fillMode: Image.PreserveAspectFit
-                opacity: Visibilities.isCaelestiaMode ? 0 : 1
+                opacity: GlobalConfig.general.caelestiaMode ? 0 : 1
 
                 Behavior on opacity { Anim { type: Anim.Standard } }
 
@@ -169,7 +169,7 @@ Item {
                 anchors.centerIn: parent
                 width: 250
                 height: 109.375
-                opacity: Visibilities.isCaelestiaMode ? 1 : 0
+                opacity: GlobalConfig.general.caelestiaMode ? 1 : 0
 
                 Behavior on opacity { Anim { type: Anim.Standard } }
 
@@ -291,8 +291,8 @@ Item {
             width: DinoGameBackend.isDucking ? 59 : 44
             height: DinoGameBackend.isDucking ? 30 : 47
             source: {
-                var prefix = Visibilities.isCaelestiaMode ? "kurukuru" : "dino";
-                if (DinoGameBackend.isGameOver) return Paths.absolutePath("root:/assets/" + prefix + (Visibilities.isCaelestiaMode ? "_stand.png" : "_crash.png"));
+                var prefix = GlobalConfig.general.caelestiaMode ? "kurukuru" : "dino";
+                if (DinoGameBackend.isGameOver) return Paths.absolutePath("root:/assets/" + prefix + (GlobalConfig.general.caelestiaMode ? "_stand.png" : "_crash.png"));
                 if (DinoGameBackend.dinoY < 0) return Paths.absolutePath("root:/assets/" + prefix + "_stand.png");
                 if (DinoGameBackend.isDucking) return Math.floor(DinoGameBackend.frameCount / 5) % 2 === 0 ? Paths.absolutePath("root:/assets/" + prefix + "_duck1.png") : Paths.absolutePath("root:/assets/" + prefix + "_duck2.png");
                 return Math.floor(DinoGameBackend.frameCount / 5) % 2 === 0 ? Paths.absolutePath("root:/assets/" + prefix + "_run1.png") : Paths.absolutePath("root:/assets/" + prefix + "_run2.png");
@@ -300,7 +300,7 @@ Item {
             x: 30
             y: parent.height - 30 - height + DinoGameBackend.dinoY
             
-            layer.enabled: !Visibilities.isCaelestiaMode
+            layer.enabled: !GlobalConfig.general.caelestiaMode
             layer.effect: Colouriser {
                 colorizationColor: root.activeColor
                 sourceColor: "white"

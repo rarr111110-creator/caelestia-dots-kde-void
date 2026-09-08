@@ -3,8 +3,40 @@
 
 set -uo pipefail
 
-log()  { echo -e "\033[0;36m[INFO]\033[0m $*"; }
-err()  { echo -e "\033[0;31m[ERR]\033[0m  $*"; }
+log()  { printf '  [INFO]  %s\n' "$*"; }
+err()  { printf '  [ERR]   %s\n' "$*" >&2; }
+
+# Return the download URL of the Darkly prebuilt .deb that matches this distro
+# from the latest GitHub release (https://github.com/Bali10050/Darkly/releases).
+darkly_deb_asset_url() {
+    local release_json id ver needle url
+    release_json="$(curl -fsSL "https://api.github.com/repos/Bali10050/Darkly/releases/latest" 2>/dev/null || true)"
+    [[ -n "$release_json" ]] || return 1
+    id="$(grep -E '^ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')"
+    ver="$(grep -E '^VERSION_ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"')"
+
+    local needles=()
+    case "$id" in
+        neon|kdeneon) needles=("kdeneon") ;;
+        ubuntu|kubuntu|linuxmint|pop) needles=("kubuntu-${ver}" "kubuntu") ;;
+        debian)
+            case "$ver" in
+                14*|15*) needles=("debian14" "debian13" "debian") ;;
+                *)        needles=("debian13" "debian14" "debian") ;;
+            esac
+            ;;
+        *) needles=("debian13" "debian14" "kubuntu" "kdeneon" "debian") ;;
+    esac
+
+    for needle in "${needles[@]}"; do
+        url="$(printf '%s' "$release_json" | grep -oE 'https://[^"]*_amd64\.deb' | grep -F "$needle" | head -n1)"
+        if [[ -n "$url" ]]; then
+            echo "$url"
+            return 0
+        fi
+    done
+    return 1
+}
 
 log "Installing Debian packages..."
 
@@ -16,12 +48,12 @@ INSTALL_DARKLY="${INSTALL_DARKLY:-true}"
 PACKAGE_GROUP="${PACKAGE_GROUP:-all}"
 
 CORE_PACKAGES=(
-    cmake ninja-build ccache g++ build-essential
+    cmake ninja-build ccache g++ build-essential qt6-l10n-tools qt6-tools-dev
     wl-clipboard cliphist inotify-tools wireplumber trash-cli jq yq
     libaubio-dev aubio-tools lm-sensors libsensors-dev
     libpipewire-0.3-dev pipewire libc6
     qt6-base-dev qt6-base-private-dev qt6-declarative-dev qml6-module-qtquick qt6-wayland qt6-wayland-dev qt6-svg-dev qt6-shadertools-dev
-    libkf6globalaccel-dev libkf6windowsystem-dev libkf6networkmanagerqt-dev libkpipewire-dev libsecret-1-dev
+    libkf6globalaccel-dev libkf6windowsystem-dev libkf6networkmanagerqt-dev libkpipewire-dev libsecret-1-dev ksshaskpass
     ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libqalculate-dev qalc libvulkan-dev
 )
 
@@ -39,19 +71,19 @@ UTILITY_PACKAGES=(
 
 # Packages that need manual build or script fallback on Debian if apt package missing
 FALLBACK_PKGS=(
-    quickshell starship libcava app2unit gpu-screen-recorder wl-clip-persist satty adw-gtk3 uv konsave
+    quickshell starship cava app2unit gpu-screen-recorder wl-clip-persist satty adw-gtk3 uv konsave
 )
 
 # Build final package list based on selected group
 PACKAGES=()
 FALLBACK_TARGETS=()
 case "$PACKAGE_GROUP" in
-    core)   PACKAGES=("${CORE_PACKAGES[@]}");   FALLBACK_TARGETS=("libcava" "app2unit") ;;
+    core)   PACKAGES=("${CORE_PACKAGES[@]}");   FALLBACK_TARGETS=("cava" "app2unit") ;;
     shell)  PACKAGES=("${SHELL_PACKAGES[@]}");  FALLBACK_TARGETS=("quickshell" "starship") ;;
     themes) PACKAGES=("${THEME_PACKAGES[@]}");  FALLBACK_TARGETS=("adw-gtk3") ;;
     utils)  PACKAGES=("${UTILITY_PACKAGES[@]}"); FALLBACK_TARGETS=("gpu-screen-recorder" "wl-clip-persist" "satty" "uv" "konsave") ;;
     all|*)  PACKAGES=("${CORE_PACKAGES[@]}" "${SHELL_PACKAGES[@]}" "${THEME_PACKAGES[@]}" "${UTILITY_PACKAGES[@]}")
-            FALLBACK_TARGETS=("quickshell" "starship" "libcava" "app2unit" "gpu-screen-recorder" "wl-clip-persist" "satty" "adw-gtk3" "uv" "konsave") ;;
+            FALLBACK_TARGETS=("quickshell" "starship" "cava" "app2unit" "gpu-screen-recorder" "wl-clip-persist" "satty" "adw-gtk3" "uv" "konsave") ;;
 esac
 
 log "Installing packages (group: $PACKAGE_GROUP)..."
@@ -125,25 +157,19 @@ for pkg in "${FALLBACK_TARGETS[@]}"; do
             sudo apt-get update || true
             sudo apt-get install -y quickshell || { err "Failed to install quickshell from PPA."; FAILED_PKGS+=("$pkg"); }
             ;;
-        libcava|cava)
-            tmpdir="$(mktemp -d)"
-            sudo apt-get install -y libasound2-dev libfftw3-dev libpulse-dev libiniparser-dev meson ninja-build cmake gcc g++ || true
-            if git clone --depth 1 https://github.com/LukashonakV/cava "$tmpdir"; then
-                (
-                    cd "$tmpdir" || exit 1
-                    if [ -f "meson.build" ]; then
-                        meson setup build && meson compile -C build && sudo meson install -C build
-                    elif [ -f "CMakeLists.txt" ]; then
-                        cmake -B build && cmake --build build && sudo cmake --install build
-                    else
-                        ./autogen.sh && ./configure && make && sudo make install
-                    fi
-                ) || { err "Manual build for $pkg failed."; FAILED_PKGS+=("$pkg"); }
+        cava)
+            # Package-manager only: cava ships in Debian 12 (Bookworm) and
+            # Ubuntu 20.10+; older Ubuntu uses the community PPA. Never built
+            # from source.
+            sudo apt-get install -y software-properties-common || true
+            sudo add-apt-repository -y ppa:hsheth2/ppa || true
+            sudo apt-get update || true
+            if sudo apt-get install -y cava; then
+                log "cava installed via apt."
             else
-                err "Failed to clone $pkg."
+                err "apt failed to install cava; no cava package available for this release."
                 FAILED_PKGS+=("$pkg")
             fi
-            rm -rf "$tmpdir"
             ;;
         app2unit)
             tmpdir="$(mktemp -d)"
@@ -300,19 +326,36 @@ unzip -qo "/tmp/JetBrainsMono.zip" -d "${XDG_DATA_HOME:-$HOME/.local/share}/font
 
 fc-cache -f
 
-log "Building and Installing Darkly KDE Theme..."
+log "Installing Darkly KDE Theme from prebuilt package..."
 if [[ "$INSTALL_DARKLY" == "true" ]]; then
-    if ! command -v darkly >/dev/null 2>&1; then
-        tmpdir="$(mktemp -d)"
-        sudo apt-get install -y cmake extra-cmake-modules gettext libkf6config-dev libkf6configwidgets-dev libkf6coreaddons-dev libkf6guiaddons-dev libkf6i18n-dev libkf6iconthemes-dev libkf6kio-dev libkf6widgetsaddons-dev libkf6windowsystem-dev libkf6colorscheme-dev libkf6kcmutils-dev libkirigami-dev libkdecorations3-dev libkf6style-dev qt6-base-dev qt6-declarative-dev || true
-        if git clone --depth 1 https://github.com/Bali10050/Darkly "$tmpdir"; then
-            (
-                cd "$tmpdir" || exit 1
-                cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_QT5=OFF && cmake --build build -j"$(nproc)" && cd build && sudo cmake --install .
-            ) || err "Failed to build Darkly theme from source."
+    if ! command -v darkly >/dev/null 2>&1 && ! dpkg -s darkly >/dev/null 2>&1; then
+        _darkly_deb="$(darkly_deb_asset_url || true)"
+        if [[ -n "$_darkly_deb" ]]; then
+            tmpdir="$(mktemp -d)"
+            log "Downloading Darkly .deb from GitHub releases..."
+            if curl -fsSL "$_darkly_deb" -o "$tmpdir/darkly.deb"; then
+                sudo apt-get install -y "$tmpdir/darkly.deb" || sudo dpkg -i "$tmpdir/darkly.deb" || err "Failed to install Darkly .deb."
+            else
+                err "Failed to download Darkly .deb from GitHub releases."
+            fi
+            rm -rf "$tmpdir"
+        else
+            err "No prebuilt Darkly .deb found for this distro."
         fi
-        rm -rf "$tmpdir"
     fi
+
+    log "Installing Darkly GTK theme..."
+    sudo apt-get install -y sassc || true
+    tmpdir="$(mktemp -d)"
+    if git clone --depth 1 https://github.com/wrymt/darkly-gtk "$tmpdir"; then
+        (
+            cd "$tmpdir" || exit 1
+            ./install.sh -l || err "Failed to install Darkly GTK theme."
+        )
+    else
+        err "Failed to clone Darkly GTK theme."
+    fi
+    rm -rf "$tmpdir"
 else
     log "Skipping Darkly package installation by user choice."
 fi

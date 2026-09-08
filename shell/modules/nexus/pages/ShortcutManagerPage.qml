@@ -21,6 +21,7 @@ PageBase {
     property var workspaceShortcuts: []
 
     property var tilingShortcuts: []
+
     property string shortcutQuery
 
     function matchesShortcut(item: var): bool {
@@ -114,48 +115,18 @@ PageBase {
             }
         }
 
-        StyledRect {
+        SearchBar {
+            id: searchField
+
             Layout.fillWidth: true
-            implicitHeight: searchLayout.implicitHeight + Tokens.padding.medium * 2
-            radius: Tokens.rounding.full
-            color: Colours.tPalette.m3surfaceContainerLowest
-            border.color: Colours.palette.m3outlineVariant
-
-            RowLayout {
-                id: searchLayout
-
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.margins: Tokens.padding.large
-                spacing: Tokens.spacing.small
-
-                MaterialIcon {
-                    text: "search"
-                    color: Colours.palette.m3onSurfaceVariant
-                    fontStyle: Tokens.font.icon.medium
-                }
-
-                StyledTextField {
-                    id: searchField
-
-                    Layout.fillWidth: true
-                    placeholderText: qsTr("Search shortcuts")
-                    color: Colours.palette.m3onSurface
-                    font: Tokens.font.body.medium
-                    onTextChanged: root.shortcutQuery = text
-                }
-
-                IconButton {
-                    visible: searchField.text.length > 0
-                    icon: "close"
-                    font: Tokens.font.icon.medium
-                    type: IconButton.Text
-                    padding: Tokens.padding.extraSmall
-                    isRound: true
-                    onClicked: searchField.clear()
-                }
-            }
+            placeholderText: qsTr("Search shortcuts")
+            font: Tokens.font.body.medium
+            bg.color: Colours.tPalette.m3surfaceContainerLowest
+            bg.border.color: Colours.palette.m3outlineVariant
+            searchIcon.fontStyle: Tokens.font.icon.medium
+            clearIcon.font: Tokens.font.icon.medium
+            clearIcon.padding: Tokens.padding.extraSmall
+            onTextChanged: root.shortcutQuery = text
         }
 
         SectionHeader {

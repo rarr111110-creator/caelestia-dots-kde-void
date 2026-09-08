@@ -22,6 +22,13 @@ PageBase {
 
         ToggleRow {
             first: true
+            text: qsTr("Enabled")
+            subtext: qsTr("Show the on-screen sliders")
+            checked: Config.osd.enabled
+            onToggled: GlobalConfig.osd.enabled = checked
+        }
+
+        ToggleRow {
             text: qsTr("Volume")
             subtext: qsTr("Show the volume slider")
             checked: Config.osd.enableVolume
@@ -67,6 +74,22 @@ PageBase {
             to: 100
             stepSize: 5
             onMoved: value => GlobalConfig.osd.hoverWidth = value
+        }
+
+        SectionHeader {
+            text: qsTr("Behavior")
+        }
+
+        StepperRow {
+            first: true
+            last: true
+            label: qsTr("Hide delay")
+            subtext: qsTr("Seconds before the slider hides")
+            value: Config.osd.hideDelay / 1000
+            from: 1
+            to: 10
+            stepSize: 1
+            onMoved: value => GlobalConfig.osd.hideDelay = Math.round(value * 1000)
         }
     }
 }

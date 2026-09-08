@@ -63,10 +63,6 @@ StyledRect {
                     return size % 2 === 0 ? size : size + 1; // Ensure even size so center works properly
                 }
 
-                Behavior on color {
-                    CAnim {}
-                }
-
                 StyledText {
                     id: tempLabel
 
@@ -120,10 +116,6 @@ StyledRect {
         Layout.fillWidth: true
         implicitHeight: width
 
-        Behavior on shapeColour {
-            CAnim {}
-        }
-
         MaterialShape {
             id: shape
 
@@ -174,10 +166,6 @@ StyledRect {
                 color: res.colour
                 font: Tokens.font.headline.builders.large.scale(root.fontScale).width(50).build()
             }
-        }
-
-        Behavior on fillValue {
-            Anim {}
         }
     }
 }

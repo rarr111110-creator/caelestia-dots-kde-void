@@ -137,6 +137,47 @@ PageBase {
         }
 
         SectionHeader {
+            text: qsTr("Interaction")
+        }
+
+        ToggleRow {
+            first: true
+            text: qsTr("Click to activate")
+            subtext: qsTr("Activate the notification action on click")
+            checked: GlobalConfig.notifs.actionOnClick
+            onToggled: GlobalConfig.notifs.actionOnClick = checked
+        }
+
+        StepperRow {
+            label: qsTr("Expand threshold")
+            subtext: qsTr("Hover pixels before a docked notification expands")
+            value: GlobalConfig.notifs.expandThreshold
+            from: 5
+            to: 100
+            stepSize: 5
+            onMoved: value => GlobalConfig.notifs.expandThreshold = Math.round(value)
+        }
+
+        StepperRow {
+            label: qsTr("Fullscreen timeout")
+            subtext: qsTr("Milliseconds a notification stays over a fullscreen app")
+            value: GlobalConfig.notifs.fullscreenExpireTimeout / 1000
+            from: 1
+            to: 30
+            stepSize: 1
+            onMoved: value => GlobalConfig.notifs.fullscreenExpireTimeout = Math.round(value * 1000)
+        }
+
+        SliderRow {
+            last: true
+            label: qsTr("Clear threshold")
+            subtext: qsTr("Swipe distance before a notification is dismissed")
+            valueLabel: Math.round(value * 100) + "%"
+            value: GlobalConfig.notifs.clearThreshold
+            onMoved: value => GlobalConfig.notifs.clearThreshold = value
+        }
+
+        SectionHeader {
             text: qsTr("Taskbar")
         }
 

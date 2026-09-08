@@ -145,6 +145,13 @@ Searcher {
             '    d.writeConfig("Image", "file://" + ' + JSON.stringify(imagePath) + ');' +
             '}';
         Quickshell.execDetached(["qdbus6", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell.evaluateScript", script]);
+
+        // Keep KDE's own lock screen wallpaper on the same image unless the user
+        // opted out of syncing the two. Read the global singleton directly: the
+        // attached `Config` is per-screen aware and is not meant to be used from
+        // a singleton service like this one.
+        if (GlobalConfig.lock.syncWallpaper)
+            Quickshell.execDetached(["kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Greeter", "--group", "Wallpaper", "--group", "org.kde.image", "--group", "General", "--key", "Image", "file://" + imagePath]);
     }
 
     function preview(path: string): void {
@@ -170,13 +177,6 @@ Searcher {
         return path;
     }
 
-    // Video wallpapers have no still to show, so the pickers had nothing to draw
-    // and sat on a loading spinner forever. Extract a frame once and cache it
-    // beside the wallpaper caches, keyed the same way getThumbnailPath already
-    // described — that path was being computed but never produced by anything.
-    // What a picker should actually display for a wallpaper: the image itself, or
-    // a video's extracted frame once there is one. Returns "" for a video whose
-    // frame is still being made, so callers can show a placeholder meanwhile.
     function thumbFor(path: string): string {
         const p = String(path || "").replace(/^file:\/\//, "");
         if (p === "" || !Images.isVideo(p))
@@ -275,11 +275,18 @@ Searcher {
             }
             root.actualCurrent = wall;
             root.previewColourLock = false;
+            // Bring the KDE lock screen in line with the shell whenever the
+            // persisted wallpaper is (re)loaded, e.g. on startup. Videos are
+            // skipped: the lock screen falls back to an image, and the video
+            // path has no still to show until onVideoThumb() provides one.
+            if (!Images.isVideo(wall))
+                syncPlasmaWallpaper(wall);
         }
         onLoadFailed: {
             root.actualCurrent = root.fallback;
             root.previewColourLock = false;
             Quickshell.execDetached(["caelestia", "wallpaper", "-f", root.fallback, ...root.smartArg]);
+            syncPlasmaWallpaper(root.fallback);
         }
     }
 

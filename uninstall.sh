@@ -10,29 +10,16 @@ set -uo pipefail
 
 BUNDLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# -- Colors -------------------------------------------------------------------
-RST="\033[0m"
-BOLD="\033[1m"
-PURPLE="\033[38;5;135m"
-BLUE="\033[38;5;75m"
-CYAN="\033[38;5;87m"
-GREEN="\033[38;5;84m"
-RED="\033[38;5;196m"
-YELLOW="\033[38;5;220m"
-DIM="\033[2m"
-
-die()  { echo -e "${RED}   [FATAL] $*${RST}" >&2; exit 1; }
-info() { echo -e "${BLUE}  [INFO]  $*${RST}"; }
-ok()   { echo -e "${GREEN}  [OK]    $*${RST}"; }
-warn() { echo -e "${YELLOW}   [WARN]  $*${RST}"; }
-skip() { echo -e "${DIM}  [SKIP]  $*${RST}"; }
+# Shared log helpers: canonical [INFO]/[OK]/[WARN]/[SKIP]/[ERR] markers,
+# matching the installer TUI and every step script.
+source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/log.sh"
 
 section() {
     local title="$1"
     echo
-    echo -e "${CYAN}-------------------------------------------------------------${RST}"
-    echo -e "${CYAN}  $title${RST}"
-    echo -e "${CYAN}-------------------------------------------------------------${RST}"
+    echo "-------------------------------------------------------------"
+    echo "  $title"
+    echo "-------------------------------------------------------------"
 }
 
 # -- OS detection ---------------------------------------------------------------
@@ -56,9 +43,15 @@ else
 fi
 
 if [[ "$BASE_DISTRO" == "unknown" ]]; then
+<<<<<<< HEAD
     echo -e "${YELLOW}Could not detect distribution. Select base:${RST}"
     echo "  1) Arch-based   2) Fedora-based   3) Debian-based   4) Void   5) Exit"
     read -r -p "Choice [1-5]: " _dc
+=======
+    echo "Could not detect distribution. Select base:"
+    echo "  1) Arch-based   2) Fedora-based   3) Debian-based   4) Exit"
+    read -r -p "Choice [1-4]: " _dc
+>>>>>>> upstream/main
     case "$_dc" in
         1) BASE_DISTRO="arch" ;;
         2) BASE_DISTRO="fedora" ;;
@@ -68,7 +61,6 @@ if [[ "$BASE_DISTRO" == "unknown" ]]; then
     esac
 fi
 
-echo -e "${PURPLE}${BOLD}"
 cat << 'EOF'
   _    _       _           _        _ _ 
  | |  | |     (_)         | |      | | |
@@ -77,13 +69,12 @@ cat << 'EOF'
  | |__| | | | | | | | \__ \ || (_| | | |
   \____/|_| |_|_|_| |_|___/\__\__,_|_|_|
 EOF
-echo -e "${RST}"
-echo -e "${CYAN}+------------------------------------------------------------------+${RST}"
-echo -e "${CYAN}|${RST} ${BOLD}${PURPLE}CAELESTIA KDE UNINSTALLER${RST}                                       ${CYAN}|${RST}"
-echo -e "${CYAN}+------------------------------------------------------------------+${RST}"
+echo "+------------------------------------------------------------------+"
+echo "|                     CAELESTIA KDE UNINSTALLER                     |"
+echo "+------------------------------------------------------------------+"
 echo
-echo -e " ${YELLOW}This will remove Caelestia KDE shell files and configs.${RST}"
-echo -e " ${BLUE}Backups in $BUNDLE_DIR/backups/ can be restored during uninstall.${RST}"
+echo " This will remove Caelestia KDE shell files and configs."
+echo " Backups in $BUNDLE_DIR/backups/ can be restored during uninstall."
 echo
 
 # -- Sudo setup ----------------------------------------------------------------
@@ -96,15 +87,13 @@ trap 'kill $_SUDO_LOOP 2>/dev/null; true' EXIT
 
 # -- Confirmation ---------------------------------------------------------------
 echo
-echo -e "${RED}Are you sure you want to uninstall Caelestia KDE? [y/N]:${RST} "
-read -r _confirm
+read -r -p "Are you sure you want to uninstall Caelestia KDE? [y/N]: " _confirm
 [[ "${_confirm,,}" == "y" || "${_confirm,,}" == "yes" ]] || die "Uninstall cancelled."
 
 echo
-echo -e "${YELLOW}Remove installed packages as well? This will uninstall${RST}"
-echo -e "${YELLOW}tools like fish, foot, btop, fastfetch, and others.${RST}"
-echo -e "Remove packages? [y/N]: "
-read -r _remove_pkgs
+echo "Remove installed packages as well? This will uninstall"
+echo "tools like fish, foot, btop, fastfetch, and others."
+read -r -p "Remove packages? [y/N]: " _remove_pkgs
 REMOVE_PACKAGES=false
 [[ "${_remove_pkgs,,}" == "y" || "${_remove_pkgs,,}" == "yes" ]] && REMOVE_PACKAGES=true
 
@@ -120,7 +109,7 @@ if [[ -d "$BUNDLE_DIR/backups" ]]; then
     mapfile -t backups < <(find "$BUNDLE_DIR/backups" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*_[0-9]*' | sort -r)
     if [[ ${#backups[@]} -gt 0 ]]; then
         echo
-        echo -e "${CYAN}Available backups to restore from:${RST}"
+        echo "Available backups to restore from:"
         for i in "${!backups[@]}"; do
             bdir="${backups[$i]}"
             bname="$(basename "$bdir")"
@@ -129,16 +118,16 @@ if [[ -d "$BUNDLE_DIR/backups" ]]; then
             tag=""
             knsv_file="$(find "$bdir" -maxdepth 1 -type f -name '*.knsv' | head -n 1)"
             if [[ -n "$knsv_file" ]]; then
-                tag="${CYAN} [konsave]${RST}"
+                tag=" [konsave]"
             fi
 
             if [[ -f "$bdir/previous_shell.txt" ]]; then
                 prev_shell="$(cat "$bdir/previous_shell.txt")"
                 prev_shell_name="$(basename "$prev_shell")"
-                tag="${tag}${CYAN} [Shell: ${prev_shell_name}]${RST}"
+                tag="${tag} [Shell: ${prev_shell_name}]"
             fi
 
-            echo -e "  $((i+1))) $formatted_date$tag"
+            echo "  $((i+1))) $formatted_date$tag"
         done
         echo "  0) None (Do not restore from backup)"
 
@@ -158,17 +147,17 @@ if [[ -d "$BUNDLE_DIR/backups" ]]; then
                 if [[ -f "$SELECTED_BACKUP/.config/quickshell/caelestia/shell.qml" ]]; then
                     echo
                     warn "The selected backup contains Caelestia configurations."
-                    echo -e "${YELLOW}   Restoring this backup will NOT revert to a clean KDE desktop!${RST}"
-                    echo -e "${YELLOW}    Instead, it will restore a previous Caelestia state.${RST}"
+                    echo "   Restoring this backup will NOT revert to a clean KDE desktop!"
+                    echo "    Instead, it will restore a previous Caelestia state."
                     read -r -p "Are you sure you want to restore this backup? [y/N]: " _cwarn
                     if [[ "${_cwarn,,}" != "y" && "${_cwarn,,}" != "yes" ]]; then
-                        echo -e "${DIM}  Backup selection cancelled. Please select again.${RST}"
+                        echo "  Backup selection cancelled. Please select again."
                         continue
                     fi
                 fi
                 break
             else
-                echo -e "${RED}Invalid selection.${RST}"
+                echo "Invalid selection."
             fi
         done
     fi
@@ -341,6 +330,22 @@ if [[ -d "$HOME/.local/share/caelestia-shell" ]]; then
     ok "Removed ~/.local/share/caelestia-shell"
 fi
 
+# Caelestia KDE lockscreen shell package
+if [[ -d "$HOME/.local/share/plasma/shells/caelestia.desktop" ]]; then
+    rm -rf "$HOME/.local/share/plasma/shells/caelestia.desktop"
+    ok "Removed ~/.local/share/plasma/shells/caelestia.desktop"
+fi
+
+# Plasma wallpaper application plugin
+if command -v kpackagetool6 >/dev/null 2>&1; then
+    kpackagetool6 -t Plasma/Wallpaper -r net.dosowisko.PlasmaApplicationWallpaper >/dev/null 2>&1 || true
+fi
+if [[ -d "$HOME/.local/share/plasma/wallpapers/net.dosowisko.PlasmaApplicationWallpaper" ]]; then
+    rm -rf "$HOME/.local/share/plasma/wallpapers/net.dosowisko.PlasmaApplicationWallpaper"
+    ok "Removed Plasma wallpaper plugin: net.dosowisko.PlasmaApplicationWallpaper"
+fi
+rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde/wallpaper-plugin-installed"
+
 section "Step 4 - Remove Bridge Scripts"
 
 for f in \
@@ -452,6 +457,16 @@ kwriteconfig6 --file kwinrc --group "Plugins" --key "krohnkiteEnabled"          
 kwriteconfig6 --file kwinrc --group "Plugins" --key "kwin_workspace_trackerEnabled" "false" 2>/dev/null || true
 ok "Disabled KWin plugins: quickshell-kde-bridge, krohnkite, kwin_workspace_tracker"
 
+# Restore the stock KDE lock screen: clear custom shell package and restore Breeze
+kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" --delete 2>/dev/null || true
+kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" "org.kde.breeze.desktop" 2>/dev/null || true
+kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin "org.kde.image" 2>/dev/null || true
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group net.dosowisko.PlasmaApplicationWallpaper --group General --key command --delete 2>/dev/null || true
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group net.dosowisko.PlasmaApplicationWallpaper --group General --key fps --delete 2>/dev/null || true
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group LnF --group General --key alwaysShowClock --delete 2>/dev/null || true
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group LnF --group General --key showMediaControls --delete 2>/dev/null || true
+ok "Restored stock KDE lock screen configuration."
+
 # Restore desktop count to 1 (KDE default)
 kwriteconfig6 --file kwinrc --group "Desktops" --key "Number" "1" 2>/dev/null || true
 kwriteconfig6 --file kwinrc --group "Desktops" --key "Rows"   "1" 2>/dev/null || true
@@ -488,6 +503,24 @@ rm -f "$HOME/.local/share/konsole/MaterialYouAlt.colorscheme"
 rm -f "$HOME/.local/share/konsole/TempMyou.profile"
 rm -f "$HOME/.local/share/color-schemes/MaterialYou"*.colors
 ok "Removed Konsole profiles generated by Caelestia"
+
+# Remove Darkly GTK theme (installed via darkly-gtk) and desktop theme symlinks
+_DARKLY_GTK_THEME="${XDG_DATA_HOME:-$HOME/.local/share}/themes/Darkly"
+_GTK4_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-4.0"
+if [[ -d "$_DARKLY_GTK_THEME" ]]; then
+    rm -rf "$_DARKLY_GTK_THEME"
+    ok "Removed Darkly GTK theme"
+fi
+rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/plasma/desktoptheme/Darkly" 2>/dev/null || true
+rm -f "${XDG_DATA_HOME:-$HOME/.local/share}/plasma/desktoptheme/darkly" 2>/dev/null || true
+if [[ -f "$_GTK4_DIR/gtk.css.created_by_darkly_installer.bak" ]]; then
+    mv -f "$_GTK4_DIR/gtk.css.created_by_darkly_installer.bak" "$_GTK4_DIR/gtk.css"
+fi
+if [[ -f "$_GTK4_DIR/gtk-darkly.css" || -d "$_GTK4_DIR/darkly-gtk-assets" ]]; then
+    rm -f "$_GTK4_DIR/gtk-darkly.css"
+    rm -rf "$_GTK4_DIR/darkly-gtk-assets"
+    ok "Removed Darkly GTK libadwaita files"
+fi
 
 # Restore Konsole config if backed up
 if [[ -n "$_bk_dir" ]]; then
@@ -609,6 +642,7 @@ if [[ -f /etc/udev/rules.d/80-uinput.rules ]]; then
     ok "Removed udev rule: 80-uinput.rules"
 fi
 
+<<<<<<< HEAD
 # uinput module autoload entry written by the installer
 if [[ -f /etc/modules-load.d/uinput.conf ]] && grep -qx 'uinput' /etc/modules-load.d/uinput.conf 2>/dev/null; then
     sudo rm -f /etc/modules-load.d/uinput.conf
@@ -624,6 +658,19 @@ for _bin in /usr/local/bin/ydotool /usr/local/bin/ydotoold; do
     fi
 done
 
+=======
+# Revert the system-wide ccache flip made by 01-ensure-prereqs.sh, if we made it.
+CCACHE_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/ccache-enabled"
+if [[ -f "$CCACHE_FLAG" ]] && [[ -f /etc/makepkg.conf ]]; then
+    if sudo sed -i 's/\(^\|[[:space:]]\)ccache\([[:space:]]\|$\)/\1!ccache\2/' /etc/makepkg.conf; then
+        rm -f "$CCACHE_FLAG"
+        ok "Reverted ccache in /etc/makepkg.conf"
+    else
+        warn "Could not revert ccache in /etc/makepkg.conf; retaining ownership marker."
+    fi
+fi
+
+>>>>>>> upstream/main
 # sudoers file for ydotoold
 if [[ -f /etc/sudoers.d/ydotoold-nopasswd ]]; then
     sudo rm -f /etc/sudoers.d/ydotoold-nopasswd
@@ -669,7 +716,7 @@ if [[ "$REMOVE_PACKAGES" == "true" ]]; then
         foot fish eza fastfetch starship btop
         adw-gtk-theme papirus-icon-theme
         ttf-jetbrains-mono-nerd ttf-material-symbols-variable
-        ttf-rubik-vf ttf-cascadia-code-nerd darkly
+        ttf-rubik-vf ttf-cascadia-code-nerd darkly darkly-bin
         swappy brightnessctl ddcutil imagemagick
         tesseract tesseract-data-eng satty spectacle sassc
         kvantum kvantum-qt5 kde-material-you-colors
@@ -682,7 +729,7 @@ if [[ "$REMOVE_PACKAGES" == "true" ]]; then
         wl-clipboard cliphist inotify-tools app2unit wireplumber trash-cli
         jq aubio lm_sensors lm_sensors-devel libcava libcava-devel libqalculate libqalculate-devel
         foot fish eza fastfetch starship btop
-        adw-gtk3-theme google-rubik-fonts papirus-icon-theme
+        adw-gtk3-theme google-rubik-fonts papirus-icon-theme darkly
         swappy brightnessctl ddcutil imagemagick
         tesseract tesseract-langpack-eng spectacle
         fuzzel satty slurp grim sassc
@@ -698,13 +745,13 @@ if [[ "$REMOVE_PACKAGES" == "true" ]]; then
     DEBIAN_PACKAGES=(
         cmake ninja-build ccache g++ build-essential
         wl-clipboard cliphist inotify-tools wireplumber trash-cli jq yq
-        libaubio-dev aubio-tools lm-sensors libsensors-dev
+        libaubio-dev aubio-tools lm-sensors libsensors-dev cava
         libpipewire-0.3-dev pipewire
         qt6-base-dev qt6-base-private-dev qt6-declarative-dev qml6-module-qtquick qt6-wayland qt6-wayland-dev qt6-svg-dev qt6-shadertools-dev
         libkf6globalaccel-dev libkf6windowsystem-dev libkf6kpipewire-dev libsecret-1-dev libkirigami-dev libkdecorations3-dev libkf6style-dev libkf6kcmutils-dev libkf6colorscheme-dev
         ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libqalculate-dev qalc
         foot fish eza fastfetch btop bash
-        adw-gtk3-theme fonts-rubik papirus-icon-theme
+        adw-gtk3-theme fonts-rubik papirus-icon-theme darkly
         fuzzel swappy brightnessctl ddcutil network-manager imagemagick
         tesseract-ocr tesseract-ocr-eng kde-spectacle slurp grim xdg-utils sassc
         libdbus-1-dev libdbus-glib-1-dev python3-dev
@@ -824,8 +871,7 @@ done
 # Installer cache
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde"
 if [[ -d "$CACHE_DIR" ]]; then
-    echo -e "${YELLOW}Remove installer cache at $CACHE_DIR? [y/N]:${RST} "
-    read -r _cache_confirm
+    read -r -p "Remove installer cache at $CACHE_DIR? [y/N]: " _cache_confirm
     if [[ "${_cache_confirm,,}" == "y" || "${_cache_confirm,,}" == "yes" ]]; then
         rm -rf "$CACHE_DIR"
         ok "Removed installer cache"
@@ -865,11 +911,11 @@ ok "KDE reloaded"
 
 section "Uninstall Complete"
 echo
-echo -e "${GREEN}  Caelestia KDE has been uninstalled.${RST}"
+ok "Caelestia KDE has been uninstalled."
 echo
-echo -e "  Backups of your original configs are in:  ${BOLD}$BUNDLE_DIR/backups/${RST}"
+echo "  Backups of your original configs are in:  $BUNDLE_DIR/backups/"
 echo
-echo -e "${YELLOW}  Please log out and back in to fully apply all changes.${RST}"
+warn "Please log out and back in to fully apply all changes."
 echo
 
 # Prompt user for immediate logout (same behavior as setup finalizer)

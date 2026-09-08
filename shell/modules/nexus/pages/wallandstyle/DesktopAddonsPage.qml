@@ -12,6 +12,62 @@ import qs.modules.nexus.common
 PageBase {
     id: root
 
+    readonly property list<MenuItem> positionItems: [
+        MenuItem {
+            property string value: "top-left"
+
+            text: qsTr("Top left")
+        },
+        MenuItem {
+            property string value: "top-center"
+
+            text: qsTr("Top center")
+        },
+        MenuItem {
+            property string value: "top-right"
+
+            text: qsTr("Top right")
+        },
+        MenuItem {
+            property string value: "center"
+
+            text: qsTr("Center")
+        },
+        MenuItem {
+            property string value: "bottom-left"
+
+            text: qsTr("Bottom left")
+        },
+        MenuItem {
+            property string value: "bottom-center"
+
+            text: qsTr("Bottom center")
+        },
+        MenuItem {
+            property string value: "bottom-right"
+
+            text: qsTr("Bottom right")
+        }
+    ]
+
+    readonly property list<MenuItem> alignmentItems: [
+        MenuItem {
+            property int value: 0
+
+            text: qsTr("Left")
+        },
+        MenuItem {
+            property int value: 1
+
+            text: qsTr("Center")
+        },
+        MenuItem {
+            property int value: 2
+
+            text: qsTr("Right")
+        }
+    ]
+
     isSubPage: true
     title: qsTr("Desktop Addons")
 
@@ -86,20 +142,148 @@ PageBase {
             ToggleRow {
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
                 Layout.fillWidth: true
+                last: true
                 text: qsTr("Hide on all monitors")
                 subtext: qsTr("Also hide on all other monitors if disabled by a window")
                 checked: Config.background.visualiser.hideOnAllMonitors
                 onToggled: GlobalConfig.background.visualiser.hideOnAllMonitors = checked
                 enabled: Config.background.visualiser.enabled && Config.background.visualiser.autoHide
             }
+        }
+
+        SectionHeader {
+            text: qsTr("Desktop clock")
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            StepperRow {
+                first: true
+                Layout.fillWidth: true
+                label: qsTr("Scale")
+                value: Config.background.desktopClock.scale
+                from: 0.5
+                to: 3
+                stepSize: 0.1
+                onMoved: v => GlobalConfig.background.desktopClock.scale = v
+            }
+
+            SelectRow {
+                Layout.fillWidth: true
+                label: qsTr("Position")
+                active: {
+                    for (let i = 0; i < root.positionItems.length; i++) {
+                        if (root.positionItems[i].value === Config.background.desktopClock.position)
+                            return root.positionItems[i];
+                    }
+                    return root.positionItems[5];
+                }
+                menuItems: root.positionItems
+                onSelected: item => GlobalConfig.background.desktopClock.position = item.value
+            }
 
             ToggleRow {
-                Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
-                Layout.fillWidth: true
                 last: true
-                text: qsTr("Shimeji characters")
-                checked: Config.shimeji.enabled
-                onToggled: GlobalConfig.shimeji.enabled = checked
+                Layout.fillWidth: true
+                text: qsTr("Invert colors")
+                checked: Config.background.desktopClock.invertColors
+                onToggled: GlobalConfig.background.desktopClock.invertColors = checked
+            }
+        }
+
+        SectionHeader {
+            text: qsTr("Desktop lyrics")
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            StepperRow {
+                first: true
+                Layout.fillWidth: true
+                label: qsTr("Scale")
+                value: Config.background.desktopLyrics.scale
+                from: 0.5
+                to: 3
+                stepSize: 0.1
+                onMoved: v => GlobalConfig.background.desktopLyrics.scale = v
+            }
+
+            SelectRow {
+                Layout.fillWidth: true
+                label: qsTr("Position")
+                active: {
+                    for (let i = 0; i < root.positionItems.length; i++) {
+                        if (root.positionItems[i].value === Config.background.desktopLyrics.position)
+                            return root.positionItems[i];
+                    }
+                    return root.positionItems[5];
+                }
+                menuItems: root.positionItems
+                onSelected: item => GlobalConfig.background.desktopLyrics.position = item.value
+            }
+
+            SelectRow {
+                Layout.fillWidth: true
+                label: qsTr("Alignment")
+                active: {
+                    for (let i = 0; i < root.alignmentItems.length; i++) {
+                        if (root.alignmentItems[i].value === Config.background.desktopLyrics.alignment)
+                            return root.alignmentItems[i];
+                    }
+                    return root.alignmentItems[1];
+                }
+                menuItems: root.alignmentItems
+                onSelected: item => GlobalConfig.background.desktopLyrics.alignment = item.value
+            }
+
+            ToggleRow {
+                last: true
+                Layout.fillWidth: true
+                text: qsTr("Invert colors")
+                checked: Config.background.desktopLyrics.invertColors
+                onToggled: GlobalConfig.background.desktopLyrics.invertColors = checked
+            }
+        }
+
+        SectionHeader {
+            text: qsTr("Visualiser")
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+
+            ToggleRow {
+                first: true
+                Layout.fillWidth: true
+                text: qsTr("Blur")
+                checked: Config.background.visualiser.blur
+                onToggled: GlobalConfig.background.visualiser.blur = checked
+            }
+
+            StepperRow {
+                Layout.fillWidth: true
+                label: qsTr("Rounding")
+                value: Config.background.visualiser.rounding
+                from: 0
+                to: 1
+                stepSize: 0.05
+                onMoved: v => GlobalConfig.background.visualiser.rounding = v
+            }
+
+            StepperRow {
+                last: true
+                Layout.fillWidth: true
+                label: qsTr("Spacing")
+                value: Config.background.visualiser.spacing
+                from: 0.5
+                to: 3
+                stepSize: 0.1
+                onMoved: v => GlobalConfig.background.visualiser.spacing = v
             }
         }
     }

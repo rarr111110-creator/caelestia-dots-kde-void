@@ -1,12 +1,12 @@
 #pragma once
 
-#include "configobject.hpp"
+#include "../Settings/objectnode.hpp"
+#include "common.hpp"
 
 namespace caelestia::config {
 
-class OsdConfig : public ConfigObject {
-    Q_OBJECT
-    QML_ANONYMOUS
+class OsdConfig : public settings::ObjectNode {
+    CONFIG_NODE(OsdConfig, settings::ObjectNode)
 
     CONFIG_PROPERTY(bool, enabled, true)
     CONFIG_PROPERTY(int, hideDelay, 2000)
@@ -15,10 +15,6 @@ class OsdConfig : public ConfigObject {
     CONFIG_PROPERTY(bool, enableBrightness, true)
     CONFIG_PROPERTY(bool, enableMicrophone, false)
     CONFIG_PROPERTY(bool, enableVolume, true)
-
-public:
-    explicit OsdConfig(QObject* parent = nullptr)
-        : ConfigObject(parent) {}
 };
 
 } // namespace caelestia::config

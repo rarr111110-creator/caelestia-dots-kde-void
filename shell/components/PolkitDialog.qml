@@ -112,7 +112,7 @@ StyledWindow {
     TextMetrics {
         id: nonAnimPlaceholder
 
-        text: "Enter your password"
+        text: qsTr("Enter your password")
         font: Tokens.font.body.builders.medium.scale(centerScale).width(110).build()
     }
 
@@ -211,7 +211,7 @@ StyledWindow {
 
                     StyledText {
                         Layout.fillWidth: true
-                        text: "Authentication Required"
+                        text: qsTr("Authentication Required")
                         font: Tokens.font.title.builders.large.weight(Font.Medium).build()
                         color: Colours.palette.m3onSurface
                         horizontalAlignment: Text.AlignHCenter

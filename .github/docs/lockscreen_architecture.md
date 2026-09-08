@@ -1,65 +1,105 @@
 # Caelestia Lock Screen Architecture
 
-This document outlines the architecture, setup instructions, and developer guidelines for the Caelestia lock screen implementation in Plasma 6 / KWin.
+This document outlines the architecture, component structure, design system, and developer guidelines for the native Caelestia lock screen implementation in KDE Plasma 6 / KWin.
 
-## How the Backend Works
+---
 
-KDE's native compositor (KWin) enforces strict security policies on the lock screen. It explicitly blocks third-party shell interfaces (like `ext-session-lock-v1`) to prevent keyloggers, unauthorized password harvesting, or lock screen bypasses. Because of this, we cannot natively render Quickshell as a standalone Wayland lock screen client in Plasma 6.
+## 1. Overview & Architecture
 
-To bypass this restriction, Caelestia relies on the `plasma-wallpaper-application` plugin. 
-- **The Proxy:** This plugin acts as a nested Wayland server (proxy) that runs *inside* the secure KDE lock screen environment.
-- **The Connection:** Quickshell connects to this proxy socket instead of the native KWin compositor.
-- **The Input:** Because it is running underneath the KDE lock screen overlay, native KDE password input will immediately take over as soon as you move your mouse or press a key. Caelestia acts as a beautiful "screensaver" and dashboard that sits behind this authentication overlay.
+In KDE Plasma 6, `kscreenlocker_greet` manages the lock screen session and authentication. Rather than relying on third-party Wayland proxies or nested compositors, Caelestia provides a **native Plasma Shell package** (`caelestia.desktop`).
 
-## Setup Instructions
+### How It Works
+- **Native Shell Package:** The greeter is packaged as a `Plasma/Shell` KPackage located at `~/.local/share/plasma/shells/caelestia.desktop/`.
+- **KDE Greeter Registration:** In `~/.config/plasmashellrc`, setting `[Shell]` -> `ShellPackage=caelestia.desktop` instructs `kscreenlocker_greet` to load Caelestia's lockscreen interface directly instead of the stock Plasma desktop shell.
+- **Hardware-Accelerated Rendering:** Rendering is performed directly within QtQuick and KWin's compositor using hardware GPU acceleration, eliminating the CPU software-compositing bottlenecks of nested Wayland proxies.
+- **Direct Authentication:** The greeter interfaces directly with KDE's ScreenLocker authentication backend (`authenticator`), providing seamless PAM authentication, error handling, grace locks, and fingerprint reader integration.
 
-This plugin is **not** SDDM specific (SDDM is your login screen). This is specifically for KDE's built-in Lock Screen (`kscreenlocker`). 
-Additionally, you **do not** need to compile it! It is a pure QML/QtWayland package.
+---
 
-1. **Install Dependencies:** Ensure you have the QtWayland compositor module installed (`qt6-wayland` on Arch).
-2. **Install the Plugin:** Navigate to the `plasma-wallpaper-application` directory in this repository and install it using KDE's package tool:
-   ```bash
-   cd plasma-wallpaper-application
-   kpackagetool6 -t Plasma/Wallpaper -i package
-   ```
-   *(Note: To upgrade it later, use `-u` instead of `-i`)*
-3. **Apply in KDE Settings:** 
-   - Open KDE System Settings -> Screen Locking -> Configure Appearance
-   - Select the `Application` wallpaper plugin.
-4. **Configure the Command:** 
-   - In the plugin settings, set the application command to:
-     ```bash
-     quickshell -p ~/.config/quickshell/caelestia/lockscreen.qml
-     ```
+## 2. Component Structure
 
-## Wayland CPU Utilization & Performance
+The lock screen greeter source is located in `src/kde/shells/caelestia.desktop/`:
 
-When Quickshell runs natively on your desktop, it communicates directly with KWin and leverages **Hardware (GPU) Compositing**. This is highly efficient and typically uses <5% CPU even with active animations.
+```
+src/kde/shells/caelestia.desktop/
+├── metadata.json                          # KPackage manifest required by kpackagetool6 / plasmashell.
+│                                          # Declares KPackageStructure=Plasma/Shell so the package is
+│                                          # recognized as a greeter shell, not a plugin or applet.
+└── contents/
+    └── lockscreen/
+        ├── LockScreen.qml                 # Main shell entry wrapper (exposes `locked` to kscreenlocker)
+        ├── LockScreenUi.qml               # Root UI layout, scaling, wallpaper blur, & palette
+        ├── components/
+        │   ├── ClockWidget.qml            # Stacked hour/minute clock & formatted date
+        │   ├── GreetingPill.qml           # Time-based greeting pill with weather/time icon
+        │   ├── ProfileAvatar.qml          # ~/.face avatar with M3 pentagon clip and fallback
+        │   ├── PasswordPill.qml           # Password input with animated M3 shapes & fingerprint icon
+        │   ├── WeatherCard.qml            # Weather forecast, temperatures, and condition icon
+        │   ├── CaelestiafetchCard.qml     # System information card with Caelestia logo & palette dots
+        │   ├── MediaCard.qml              # MPRIS media player with rounded album art and playback controls
+        │   ├── ResourcesCard.qml          # CPU, RAM, and Disk resource meters with live temp badge
+        │   └── NotifDock.qml              # Categorized notification dock with expandable groups
+        └── scripts/
+            └── sysinfo.py                 # system info fetch script
+```
 
-However, when running inside the lock screen via `plasma-wallpaper-application`, the nested proxy must capture Wayland buffers and heavily relies on **Software (CPU) Compositing**. 
+---
 
-### The Animation Problem
-If your lock screen widgets contain continuous animations, QtQuick will generate new frames at 60 FPS. The proxy must then software-composite all 60 frames per second on your CPU. This creates an **extreme CPU bottleneck**, often spiking usage to 40% or more while locked.
+## 3. Design System & Aesthetics
 
-### Solutions for Users
-To mitigate high CPU temperatures and fan noise while locked:
-1. **Set an FPS Limit:** In the `Application` wallpaper plugin settings, set the FPS limit to a lower value like `15` or `30`. Since it is a lock screen, high framerates are unnecessary.
-2. **Use Static Wallpapers:** Avoid using video wallpapers or animated GIFs on the lock screen. The number of frames rendered is directly proportional to your CPU usage.
+The Caelestia lock screen brings the modern Quickshell lockscreen design into native KDE Plasma 6:
 
-## Developer Guide: Building Low-FPS Widgets
+1. **Frosted-Glass Blur Textures:**
+   - Because KWin Wayland does not apply compositor background blur to out-of-process greeter windows, Caelestia utilizes KDE's greeter wallpaper blurring technique by sourcing the in-process `wallpaper` item directly through `FastBlur` (radius 64).
+   - The blurred wallpaper is mapped onto the lockscreen container (`lockBg`) and layout regions using a live `ShaderEffectSource` clipped with `OpacityMask` matching the container's corner radius (`bgRadius`).
+   - Card widgets use translucent surface backgrounds (`Qt.rgba(..., 0.55)`), allowing the vibrant blurred wallpaper gradients and colors to illuminate the widgets.
 
-When developing widgets for the lock screen, you must be extremely conscious of Wayland frame damage. Any active `Timer`, `Behavior`, or infinite loop will force the proxy to redraw the screen.
+2. **Concentric Corner Radii:**
+   - Outer background container radius: `bgRadius = 42px` (scaled with screen height).
+   - Inner container padding: `bgMargin = 16px`.
+   - Card widget corner radius: `cardRadius = bgRadius - bgMargin = 26px`.
+   - Produces mathematically uniform gaps and curves along all edges and corners.
 
-### Component Structure
-- **Root Entry Point:** `lockscreen.qml` - Initializes the lock screen environment.
-- **Background Window:** `modules/lock/LockBackgroundWindow.qml` - Creates the transparent fullscreen container.
-- **Content Layout:** `modules/lock/BackgroundContent.qml` - Defines the widget grid and responsiveness (portrait vs landscape).
-- **Widgets Directory:** `modules/lock/` - Contains the individual dashboard widgets (e.g., `Fetch.qml`, `Media.qml`, `Resources.qml`).
+3. **Avatar Priority:**
+   - [`ProfileAvatar.qml`](../../src/kde/shells/caelestia.desktop/contents/lockscreen/components/ProfileAvatar.qml) prioritizes `~/.face` directly from the user's home directory.
+   - Automatically falls back to the system account picture (`kscreenlocker_userImage`) and the Material Symbols user icon if `~/.face` is absent.
 
-### Strict Rules for Lock Screen Widgets
-1. **No Continuous Animations:** Never use infinite `RotationAnimator` or scrolling marquees.
-2. **Synchronize Polling:** If you have multiple widgets that poll data (like `Cpu`, `Memory`, `Storage`), ensure they do not stagger their animations. If CPU animates at 0.0s, RAM at 0.3s, and Disk at 0.6s, the screen is animating 90% of the time. 
-3. **Avoid Behaviors on Timers:** If a value is updated via a 1-second interval (like system stats), do **not** use a 300ms `Behavior` on that value. It is better to let the value snap instantly, generating 1 frame of damage per second, rather than 18 frames of damage per second.
-4. **Pause Shaders:** If using `ShaderEffectSource`, ensure `live` is set to `false` unless a transition is actively occurring.
+4. **Responsive Layouts:**
+   - **Landscape (Default):** 3-column layout (Left: Weather, Caelestiafetch, Media | Center: Clock, Avatar, Password Pill | Right: Resources, Notification Dock).
+   - **Portrait:** Centered vertical column adapting automatically on vertical displays.
 
-To create or edit a widget, modify the files inside `shell/modules/lock/` and add them to the grid in `BackgroundContent.qml`. Keep them static!
+---
+
+## 4. Deployment, Testing, and Uninstallation
+
+### Deployment
+The lock screen greeter is deployed automatically by the installer in Step 5 ([`scripts/02-packages.sh`](../../scripts/02-packages.sh)) and updated during shell builds ([`scripts/08-build-shell.sh`](../../scripts/08-build-shell.sh)):
+
+```bash
+# Manual installation / deployment:
+mkdir -p ~/.local/share/plasma/shells/
+cp -r src/kde/shells/caelestia.desktop ~/.local/share/plasma/shells/
+kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop"
+```
+
+### Interactive Testing
+You can test the lock screen UI safely in a non-blocking test window without locking your desktop session:
+
+```bash
+/usr/lib/kscreenlocker_greet --testing
+```
+
+### Uninstallation & Reverting
+To revert back to the stock KDE Breeze lock screen:
+
+```bash
+# Reset shell package back to KDE default
+kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" --delete
+
+# Restore default Breeze greeter theme
+kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" "org.kde.breeze.desktop"
+
+# (Optional) Remove local shell files
+rm -rf ~/.local/share/plasma/shells/caelestia.desktop
+```
+This is also handled automatically when running [`./uninstall.sh`](../../uninstall.sh).

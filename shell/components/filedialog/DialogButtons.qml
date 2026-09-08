@@ -60,7 +60,7 @@ StyledRect {
                 anchors.margins: Tokens.padding.medium
 
                 text: qsTr("Select")
-                color: root.dialog.selectionValid ? Colours.palette.m3onSurface : Colours.palette.m3onSurfaceVariant
+                color: root.dialog.selectionValid ? Colours.palette.m3onSurface : Colours.palette.m3outline
             }
         }
 

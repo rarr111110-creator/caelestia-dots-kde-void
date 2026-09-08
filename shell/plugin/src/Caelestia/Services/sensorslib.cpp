@@ -1,12 +1,14 @@
 #include "sensorslib.hpp"
 
+#include <qloggingcategory.h>
+
+#include <sensors/sensors.h>
+
 #include <atomic>
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
-#include <qloggingcategory.h>
-#include <sensors/sensors.h>
 
 Q_LOGGING_CATEGORY(lcSensorsLib, "caelestia.services.sensorslib", QtInfoMsg)
 
@@ -110,10 +112,11 @@ std::optional<double> gpuPciAverageTemp() {
         return std::nullopt;
     }
 
-    double sumPrimary = 0.0;
-    int countPrimary = 0;
-    double sumFallback = 0.0;
-    int countFallback = 0;
+    // On hybrid / multi-GPU systems, averaging yields misleading numbers.
+    // Prefer the maximum primary GPU temperature across all PCI GPU devices;
+    // if none found, fall back to the maximum fallback sensor.
+    double maxPrimary = -1.0;
+    double maxFallback = -1.0;
 
     int chipNr = 0;
     while (const sensors_chip_name* chip = sensors_get_detected_chips(nullptr, &chipNr)) {
@@ -145,20 +148,22 @@ std::optional<double> gpuPciAverageTemp() {
                 continue;
             }
             if (isPrimary) {
-                sumPrimary += *v;
-                ++countPrimary;
+                if (*v > maxPrimary) {
+                    maxPrimary = *v;
+                }
             } else {
-                sumFallback += *v;
-                ++countFallback;
+                if (*v > maxFallback) {
+                    maxFallback = *v;
+                }
             }
         }
     }
 
-    if (countPrimary > 0) {
-        return sumPrimary / countPrimary;
+    if (maxPrimary >= 0.0) {
+        return maxPrimary;
     }
-    if (countFallback > 0) {
-        return sumFallback / countFallback;
+    if (maxFallback >= 0.0) {
+        return maxFallback;
     }
     return std::nullopt;
 }

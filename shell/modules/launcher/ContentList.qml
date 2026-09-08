@@ -16,6 +16,7 @@ Item {
     required property var content
     required property DrawerVisibilities visibilities
     required property var panels
+    required property real maxWidth
     required property real maxHeight
     required property StyledTextField search
     required property int padding
@@ -27,7 +28,8 @@ Item {
     readonly property bool showWindowSwitcher: search.text.startsWith(`${GlobalConfig.launcher.actionPrefix}windows `)
     readonly property bool showKeybinds: search.text.startsWith(`${GlobalConfig.launcher.actionPrefix}keybinds `)
     readonly property bool showAnimations: search.text.startsWith(`${GlobalConfig.launcher.actionPrefix}animations `)
-    readonly property var currentList: showWallpapers ? wallpaperList.item : (showWindowSwitcher ? windowSwitcherList.item : (showAnimations ? animationsList.item : (showKeybinds ? keybindsList.item : appList.item)))
+    readonly property bool showAppsBrowser: root.state === "apps" && !search.text && Config.launcher.showBrowseOnEmpty
+    readonly property var currentList: showWallpapers ? wallpaperList.item : (showWindowSwitcher ? windowSwitcherList.item : (showAnimations ? animationsList.item : (showKeybinds ? keybindsList.item : (showAppsBrowser ? browser.item : appList.item))))
 
     readonly property var wallpaperTabs: {
         const res = [];
@@ -52,8 +54,8 @@ Item {
 
             PropertyChanges {
                 target: root
-                implicitWidth: root.Tokens.sizes.launcher.itemWidth
-                implicitHeight: Math.min(root.maxHeight, appList.implicitHeight > 0 ? appList.implicitHeight : empty.implicitHeight)
+                implicitWidth: root.showAppsBrowser ? browser.implicitWidth : root.Tokens.sizes.launcher.itemWidth
+                implicitHeight: root.showAppsBrowser ? Math.min(root.maxHeight, Math.max(root.Tokens.sizes.launcher.browseMinHeight, Math.min(browser.implicitHeight, root.Tokens.sizes.launcher.browseHeight))) : Math.min(root.maxHeight, appList.implicitHeight > 0 ? appList.implicitHeight : empty.implicitHeight)
             }
         },
         State {
@@ -166,13 +168,36 @@ Item {
     Loader {
         id: appList
 
-        active: root.state === "apps"
+        active: root.state === "apps" && !root.showAppsBrowser
 
         anchors.fill: parent
 
         sourceComponent: AppList {
             search: root.search
             visibilities: root.visibilities
+        }
+    }
+
+    Loader {
+        id: browser
+
+        active: root.state === "apps"
+        visible: root.showAppsBrowser
+        opacity: root.showAppsBrowser ? 1 : 0
+
+        anchors.fill: parent
+
+        sourceComponent: AppBrowser {
+            visibilities: root.visibilities
+            maxWidth: root.maxWidth
+        }
+
+        Behavior on opacity {
+            enabled: root.visibilities.launcher && !root.visibilities.skipLauncherAnim
+
+            Anim {
+                type: Anim.DefaultEffects
+            }
         }
     }
 
@@ -410,8 +435,8 @@ Item {
         /// its own, so ask the list itself.
         readonly property bool cliphistMissing: root.currentList?.state === "clipboard" && !Clipboard.available
 
-        opacity: root.currentList?.count === 0 ? 1 : 0
-        scale: root.currentList?.count === 0 ? 1 : 0.5
+        opacity: (!root.showAppsBrowser && root.currentList?.count === 0) ? 1 : 0
+        scale: (!root.showAppsBrowser && root.currentList?.count === 0) ? 1 : 0.5
 
         spacing: Tokens.spacing.medium
         padding: Tokens.padding.large

@@ -12,6 +12,7 @@ Item {
     required property ShellScreen screen
     required property DrawerVisibilities visibilities
     required property var panels
+    readonly property real maxWidth: screen.width
     readonly property bool shouldBeActive: visibilities.launcher && Config.launcher.enabled && !visibilities.overview
     readonly property real maxHeight: {
         let max = screen.height - Config.border.thickness * 2 + Tokens.padding.extraLarge;
@@ -51,6 +52,7 @@ Item {
             Content {
                 visibilities: root.visibilities
                 panels: root.panels
+                maxWidth: root.maxWidth
                 maxHeight: root.maxHeight
             }
         }
