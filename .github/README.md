@@ -6,6 +6,12 @@
 
 <h3>A KDE Plasma port of the caelestia shell</h3>
 
+
+### !Este es un fork personal para adaptar el repositorio "caelestia-dots-kde" a void linux doy creditos al creador original ladybug-me.
+
+### IMPORTANTE funciona a medias 
+
+
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793d1?logo=arch-linux&logoColor=white&style=flat-square)](https://archlinux.org)
 [![Fedora](https://img.shields.io/badge/Fedora-51A2DA?logo=fedora&logoColor=white&style=flat-square)](https://fedoraproject.org)
 [![Debian](https://img.shields.io/badge/Debian-A81D33?logo=debian&logoColor=white&style=flat-square)](https://debian.org)
