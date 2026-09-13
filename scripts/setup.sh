@@ -74,7 +74,6 @@ detect_base_distro() {
     echo "$detected"
 }
 
-<<<<<<< HEAD
 is_cachyos() {
     local os_id=""
     local os_like=""
@@ -200,8 +199,6 @@ silent_refresh_native_sources() {
     esac
 }
 
-=======
->>>>>>> upstream/main
 run_arch_pacman_install() {
     local -a pkgs=("$@")
     local -a pacman_args=(-S --needed --noconfirm)
@@ -255,7 +252,6 @@ run_void_xbps_install() {
 
 export BASE_DISTRO="$(detect_base_distro)"
 
-<<<<<<< HEAD
 # Only run in the outer (pre-tmux) invocation.
 if [[ "${CAELESTIA_TMUX_MASTER:-0}" == "0" ]]; then
     if [[ "$BASE_DISTRO" == "arch" ]]; then
@@ -265,8 +261,6 @@ if [[ "${CAELESTIA_TMUX_MASTER:-0}" == "0" ]]; then
     fi
 fi
 
-=======
->>>>>>> upstream/main
 normalize_line_endings_first() {
     export BASE_DISTRO="$(detect_base_distro)"
     local -a crlf_files=()
@@ -337,25 +331,6 @@ fi
 
 BIN="$BUNDLE_DIR/caelestia-install"
 
-<<<<<<< HEAD
-# Try to fetch a prebuilt installer binary from GitHub Releases so we don't
-# have to compile the TUI on the user's machine. The binary is built by
-# .github/workflows/prebuilt-artifacts.yml and uploaded to the fixed
-# `caelestia-bin-repo` release tag. Falls back to compiling when unavailable
-# (no curl, offline, unsupported arch) or when forced via env var.
-#
-# The prebuilt binary is linked against glibc (Ubuntu CI runner), so it cannot
-# run on Void-musl — always build from source there.
-is_musl_system() {
-    if command -v xbps-uhelper >/dev/null 2>&1; then
-        case "$(xbps-uhelper arch 2>/dev/null)" in
-            *musl*) return 0 ;;
-        esac
-    fi
-    ldd --version 2>&1 | grep -qi musl
-}
-
-=======
 # The TUI data version of this checkout. The prebuilt binary is only reused
 # when it reports the same version - a stale release binary would otherwise
 # render old screens and ignore new menu actions (e.g. action_review).
@@ -370,12 +345,23 @@ release_tag() {
 }
 
 # Try to fetch a prebuilt installer binary from the version release so we
+# don't have to compile the TUI on the user's machine. Falls back to
+# compiling when unavailable or when forced via env var.
+is_musl_system() {
+    if command -v xbps-uhelper >/dev/null 2>&1; then
+        case "$(xbps-uhelper arch 2>/dev/null)" in
+            *musl*) return 0 ;;
+        esac
+    fi
+    ldd --version 2>&1 | grep -qi musl
+}
+
+# Try to fetch a prebuilt installer binary from the version release so we
 # don't have to compile the TUI on the user's machine. The binary is built by
 # the build-installer job in .github/workflows/version-release.yml and
 # attached to the release tagged with this checkout's VERSION. Falls back to
 # compiling when unavailable (no curl, offline, unsupported arch), when it
 # does not match this checkout's TUI version, or when forced via env var.
->>>>>>> upstream/main
 try_download_prebuilt_installer() {
     local arch
     arch="$(uname -m)"
@@ -384,19 +370,12 @@ try_download_prebuilt_installer() {
         *) return 1 ;;
     esac
 
-<<<<<<< HEAD
     # Prebuilt binaries are glibc builds; musl systems must compile locally.
     if is_musl_system; then
         echo "[INFO]  musl libc detected - prebuilt installer is glibc-only; will build from source." >&2
         return 1
     fi
 
-    local tmp_bin
-    tmp_bin="$(mktemp)"
-    local url
-    url="https://github.com/rarr111110-creator/caelestia-dots-kde-void/releases/download/caelestia-bin-repo/caelestia-install-${arch}"
-    if curl -fsSL --connect-timeout 10 --max-time 120 "$url" -o "$tmp_bin" 2>/dev/null; then
-=======
     local version tag tmp_bin url
     version="$(tui_version)"
     tag="$(release_tag)"
@@ -408,7 +387,6 @@ try_download_prebuilt_installer() {
     tmp_bin="$(mktemp)"
     url="https://github.com/ladybug-me/caelestia-dots-kde/releases/download/${tag}/caelestia-install-${arch}-v${version}"
     if curl -fsSL --connect-timeout 10 --max-time 30 "$url" -o "$tmp_bin" 2>/dev/null; then
->>>>>>> upstream/main
         chmod +x "$tmp_bin"
         printf '%s\n' "$tmp_bin"
         return 0
@@ -441,59 +419,10 @@ stop_spinner() {
 
 start_spinner
 
-<<<<<<< HEAD
-    if [ ${#MISSING_PKGS[@]} -ne 0 ]; then
-        kill $SPINNER_PID 2>/dev/null || true
-        echo ""
-        echo "Missing build tools: ${MISSING_PKGS[*]}. Installing..."
-        if [[ "$BASE_DISTRO" == "arch" ]]; then
-            if [[ "${CAELESTIA_USE_TMUX:-1}" == "1" ]]; then
-                run_arch_pacman_install base-devel cmake tmux
-            else
-                run_arch_pacman_install base-devel cmake
-            fi
-        elif [[ "$BASE_DISTRO" == "fedora" ]]; then
-            if [[ "${CAELESTIA_USE_TMUX:-1}" == "1" ]]; then
-                sudo dnf install -y gcc-c++ cmake make tmux
-            else
-                sudo dnf install -y gcc-c++ cmake make
-            fi
-        elif [[ "$BASE_DISTRO" == "debian" ]]; then
-            if [[ "${CAELESTIA_USE_TMUX:-1}" == "1" ]]; then
-                sudo apt-get update && sudo apt-get install -y build-essential g++ cmake make tmux
-            else
-                sudo apt-get update && sudo apt-get install -y build-essential g++ cmake make
-            fi
-        elif [[ "$BASE_DISTRO" == "void" ]]; then
-            if [[ "${CAELESTIA_USE_TMUX:-1}" == "1" ]]; then
-                run_void_xbps_install base-devel cmake make tmux
-            else
-                run_void_xbps_install base-devel cmake make
-            fi
-        else
-            echo "Could not auto-install build tools. Please install manually: ${MISSING_PKGS[*]}"
-            exit 1
-        fi
-        echo -n "Preparing Caelestia installer"
-        {
-            while true; do
-                printf "."
-                sleep 0.5
-                printf "."
-                sleep 0.5
-                printf "."
-                sleep 0.5
-                printf "\b\b\b   \b\b\b"
-            done
-        } &
-        SPINNER_PID=$!
-    fi
-=======
 PREBUILT_BIN=""
 if [[ -z "${CAELESTIA_FORCE_BUILD_INSTALLER:-}" ]] && command -v curl >/dev/null 2>&1; then
     PREBUILT_BIN="$(try_download_prebuilt_installer || true)"
 fi
->>>>>>> upstream/main
 
 if [[ -n "$PREBUILT_BIN" ]]; then
     stop_spinner

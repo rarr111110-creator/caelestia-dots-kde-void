@@ -14,8 +14,12 @@
 
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793d1?logo=arch-linux&logoColor=white&style=flat-square)](https://archlinux.org)
 [![Fedora](https://img.shields.io/badge/Fedora-51A2DA?logo=fedora&logoColor=white&style=flat-square)](https://fedoraproject.org)
+<<<<<<< HEAD
 [![Debian](https://img.shields.io/badge/Debian-A81D33?logo=debian&logoColor=white&style=flat-square)](https://debian.org)
 [![Void Linux](https://img.shields.io/badge/Void_Linux-478061?logo=void-linux&logoColor=white&style=flat-square)](https://voidlinux.org)
+=======
+[![Ubuntu](https://img.shields.io/badge/Ubuntu_Rolling-E95420?logo=ubuntu&logoColor=white&style=flat-square)](https://ubuntu.com)
+>>>>>>> upstream/main
 [![KDE Plasma](https://img.shields.io/badge/Plasma_6-1D99F3?logo=kde&logoColor=white&style=flat-square)](https://kde.org/plasma-desktop)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-86dbce?style=flat-square)](LICENSE)
 [![Crowdin](https://badges.crowdin.net/caelestia-kde/localized.svg)](https://crowdin.com/project/caelestia-kde)
@@ -30,7 +34,11 @@ A community port of the [Caelestia Hyprland dotfiles](https://github.com/caelest
 
 ## Installation
 
+<<<<<<< HEAD
 **Requirements:** Arch-based distro, Fedora, Debian/Ubuntu or **Void Linux** (glibc or musl) · KDE Plasma 6.0+
+=======
+**Requirements:** Arch-based distro, Fedora, or Ubuntu (Rolling) · KDE Plasma 6.0+
+>>>>>>> upstream/main
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/caelestia-dots-kde-void/main/install.sh | sh
@@ -130,7 +138,7 @@ Use the built-in keyboard shortcut manager present in Caelestia Settings.
 <details>
 <summary><b>Greeter animations</b></summary>
 
-Replace `morning.gif`, `afternoon.gif`, `evening.gif`, and `night.gif` in `~/.config/quickshell/caelestia/assets/`. Then restart the shell through Quick toggles panel.
+Right click on the widget to customize and select your desired media files for different times of the day. Or enable slideshow, change the greeting text and icon, and much more.
 
 </details>
 
@@ -167,9 +175,9 @@ For detailed debug logs, enable Debug Mode in Nexus -> About -> Advanced, then r
 | [Vinax89](https://github.com/Vinax89) | 5 |
 | [jialfaro](https://github.com/jialfaro) | 2 |
 | [SalihYzts](https://github.com/SalihYzts) | 2 |
-| [0x0nYx](https://github.com/0x0nYx) | 1 |
-| [tomjod](https://github.com/tomjod) | 1 |
-| [Peace-W](https://github.com/Peace-W) | 1 |
+| [LuYishan-4](https://github.com/LuYishan-4) | 1 |
+| [jedrikjames](https://github.com/jedrikjames) | 1 |
+| [Klivan49](https://github.com/Klivan49) | 1 |
 
 </td>
 <td width="50%">
@@ -178,14 +186,14 @@ For detailed debug logs, enable Debug Mode in Nexus -> About -> Advanced, then r
 
 | Contributor | Issues |
 | --- | ---: |
-| [0x0nYx](https://github.com/0x0nYx) | 156 |
-| [Kyedae](https://github.com/Kyedae) | 17 |
-| [bubbleo0](https://github.com/bubbleo0) | 12 |
-| [RaceConditionWinner](https://github.com/RaceConditionWinner) | 10 |
-| [KhanhNguyen1603](https://github.com/KhanhNguyen1603) | 9 |
-| [francisco-tato](https://github.com/francisco-tato) | 7 |
-| [arceus4526](https://github.com/arceus4526) | 6 |
-| [RealNath](https://github.com/RealNath) | 6 |
+| [WinTone01](https://github.com/WinTone01) | 0 |
+| [aroaxinping](https://github.com/aroaxinping) | 0 |
+| [Vinax89](https://github.com/Vinax89) | 0 |
+| [jialfaro](https://github.com/jialfaro) | 0 |
+| [SalihYzts](https://github.com/SalihYzts) | 0 |
+| [LuYishan-4](https://github.com/LuYishan-4) | 0 |
+| [jedrikjames](https://github.com/jedrikjames) | 0 |
+| [Klivan49](https://github.com/Klivan49) | 0 |
 
 </td>
 </tr></table>
