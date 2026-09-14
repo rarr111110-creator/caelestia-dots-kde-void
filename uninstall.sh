@@ -43,15 +43,9 @@ else
 fi
 
 if [[ "$BASE_DISTRO" == "unknown" ]]; then
-<<<<<<< HEAD
-    echo -e "${YELLOW}Could not detect distribution. Select base:${RST}"
+    warn "Could not detect distribution. Select base:"
     echo "  1) Arch-based   2) Fedora-based   3) Debian-based   4) Void   5) Exit"
     read -r -p "Choice [1-5]: " _dc
-=======
-    echo "Could not detect distribution. Select base:"
-    echo "  1) Arch-based   2) Fedora-based   3) Debian-based   4) Exit"
-    read -r -p "Choice [1-4]: " _dc
->>>>>>> upstream/main
     case "$_dc" in
         1) BASE_DISTRO="arch" ;;
         2) BASE_DISTRO="fedora" ;;
@@ -642,23 +636,12 @@ if [[ -f /etc/udev/rules.d/80-uinput.rules ]]; then
     ok "Removed udev rule: 80-uinput.rules"
 fi
 
-<<<<<<< HEAD
 # uinput module autoload entry written by the installer
 if [[ -f /etc/modules-load.d/uinput.conf ]] && grep -qx 'uinput' /etc/modules-load.d/uinput.conf 2>/dev/null; then
     sudo rm -f /etc/modules-load.d/uinput.conf
     ok "Removed modules-load entry: uinput.conf"
 fi
 
-# Source-built ydotool binaries (Void has no ydotool package; the installer
-# compiles them from source into /usr/local)
-for _bin in /usr/local/bin/ydotool /usr/local/bin/ydotoold; do
-    if [[ -f "$_bin" ]]; then
-        sudo rm -f "$_bin"
-        ok "Removed: $_bin"
-    fi
-done
-
-=======
 # Revert the system-wide ccache flip made by 01-ensure-prereqs.sh, if we made it.
 CCACHE_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/ccache-enabled"
 if [[ -f "$CCACHE_FLAG" ]] && [[ -f /etc/makepkg.conf ]]; then
@@ -670,7 +653,15 @@ if [[ -f "$CCACHE_FLAG" ]] && [[ -f /etc/makepkg.conf ]]; then
     fi
 fi
 
->>>>>>> upstream/main
+# Source-built ydotool binaries (Void has no ydotool package; the installer
+# compiles them from source into /usr/local)
+for _bin in /usr/local/bin/ydotool /usr/local/bin/ydotoold; do
+    if [[ -f "$_bin" ]]; then
+        sudo rm -f "$_bin"
+        ok "Removed: $_bin"
+    fi
+done
+
 # sudoers file for ydotoold
 if [[ -f /etc/sudoers.d/ydotoold-nopasswd ]]; then
     sudo rm -f /etc/sudoers.d/ydotoold-nopasswd

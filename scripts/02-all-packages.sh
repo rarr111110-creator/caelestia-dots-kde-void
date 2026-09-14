@@ -15,10 +15,5 @@ elif [[ "${BASE_DISTRO:-}" == "debian" ]]; then
 elif [[ "${BASE_DISTRO:-}" == "void" ]]; then
     bash "$BUNDLE_DIR/sdata/void-dist/installDP_void.sh"
 else
-<<<<<<< HEAD
-    echo "[ERR] BASE_DISTRO must be 'arch', 'fedora', 'debian', or 'void' (got '${BASE_DISTRO:-unset}')" >&2
-    exit 1
-=======
-    die "BASE_DISTRO must be 'arch', 'fedora', or 'debian' (got '${BASE_DISTRO:-unset}')"
->>>>>>> upstream/main
+    die "BASE_DISTRO must be 'arch', 'fedora', 'debian', or 'void' (got '${BASE_DISTRO:-unset}')"
 fi

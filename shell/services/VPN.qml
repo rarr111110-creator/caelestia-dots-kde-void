@@ -736,48 +736,23 @@ Singleton {
         }
         stderr: StdioCollector {
             onStreamFinished: {
-<<<<<<< HEAD
-                if (text.trim().length > 0) {
-                    if (text.includes("doesn't appear to be running") || text.includes("failed to connect to local tailscaled") || text.includes("daemon is not running") || text.includes("not running") && (text.includes("netbird") || text.includes("warp"))) {
-                        // Init-system-agnostic hint: systemd units on Arch/Fedora/Debian,
-                        // runit services (`sv`) on Void Linux.
-                        let cmd = (SysInfo.osId === "void") ? "sudo sv start /var/service/" : "sudo systemctl start ";
-                        switch (root.providerName) {
-                        case "tailscale":
-                            cmd += "tailscaled";
-                            break;
-                        case "netbird":
-                            cmd += "netbird";
-                            break;
-                        case "warp":
-                            cmd += "warp-svc";
-                            break;
-                        default:
-                            cmd += root.providerName + "d";
-                            break;
-                        }
-                        const errorStatus = {
-                            connected: false,
-                            state: "disconnected",
-                            reason: `Service not running (run: ${cmd})`,
-                            authUrl: ""
-                        };
-                        root.updateStatus(errorStatus);
-                    }
-=======
                 if (text.trim().length === 0)
                     return;
 
                 const daemonDown = text.includes("doesn't appear to be running") || text.includes("failed to connect") || text.includes("daemon is not running") || (text.includes("not running") && root.active.service);
                 if (daemonDown && root.active.service) {
+                    // Init-system-agnostic hint: systemd units on Arch/Fedora/Debian,
+                    // runit services (`sv`) on Void Linux.
+                    const startCmd = (SysInfo.osId === "void") ?
+                        `sudo sv start /var/service/${root.active.service}` :
+                        `sudo systemctl start ${root.active.service}`;
                     root.updateStatus({
                         connected: false,
                         state: "disconnected",
-                        reason: `Service not running (run: sudo systemctl start ${root.active.service})`,
+                        reason: `Service not running (run: ${startCmd})`,
                         authUrl: "",
                         server: ""
                     });
->>>>>>> upstream/main
                 }
             }
         }

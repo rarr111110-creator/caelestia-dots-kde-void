@@ -31,13 +31,9 @@ if ! command -v python3 >/dev/null 2>&1 || ! python3 -m pip --version >/dev/null
     elif [[ "$package_distro" == "fedora" ]]; then
         caelestia_sudo dnf install -y python3 python3-pip
     elif [[ "$package_distro" == "debian" ]]; then
-<<<<<<< HEAD
-        sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv
-    elif [[ "$package_distro" == "void" ]]; then
-        sudo xbps-install -y python3 python3-pip python3-virtualenv
-=======
         caelestia_sudo apt-get update && caelestia_sudo apt-get install -y python3 python3-pip python3-venv
->>>>>>> upstream/main
+    elif [[ "$package_distro" == "void" ]]; then
+        caelestia_sudo xbps-install -y python3 python3-pip python3-virtualenv
     else
         warn "Could not determine the distro for Python tooling installation."
     fi

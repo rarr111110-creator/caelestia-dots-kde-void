@@ -104,51 +104,12 @@ if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "themes" ]]; then
     fi
 fi
 
-<<<<<<< HEAD
-# NOTE: this release asset lives in the upstream KDE-port repo. It is only a
-# pacman binary repo (libcava/darkly built for Arch) — irrelevant for
-# Fedora/Debian/Void, which build from source instead.
-BIN_REPO_NAME="caelestia-bin"
-BIN_REPO_URL="https://github.com/ladybug-me/caelestia-dots-kde/releases/download/caelestia-bin-repo"
-
-install_from_binary_repo() {
-    if ! grep -q "^\[$BIN_REPO_NAME\]" /etc/pacman.conf 2>/dev/null; then
-        {
-            echo ""
-            echo "[$BIN_REPO_NAME]"
-            echo "SigLevel = Optional"
-            echo "Server = $BIN_REPO_URL"
-            echo ""
-        } | sudo tee -a /etc/pacman.conf >/dev/null
-    fi
-    sudo pacman -Sy --noconfirm >/dev/null 2>&1
-}
-
-if [[ ${#PREBUILT_PKGS[@]} -gt 0 ]] && [[ -z "${CAELESTIA_SKIP_BINARY_REPO:-}" ]]; then
-    if install_from_binary_repo; then
-        for pkg in "${PREBUILT_PKGS[@]}"; do
-            if sudo pacman -S --needed --noconfirm "$pkg" >/dev/null 2>&1; then
-                log "Installed $pkg from the prebuilt repo."
-            else
-                log "Prebuilt $pkg unavailable; will build from the AUR."
-                PACKAGES+=("$pkg")
-            fi
-        done
-    else
-        log "Prebuilt repo unreachable; building from the AUR instead."
-        PACKAGES+=("${PREBUILT_PKGS[@]}")
-        sudo sed -i "/^\[$BIN_REPO_NAME\]/,/^$/d" /etc/pacman.conf
-    fi
-elif [[ ${#PREBUILT_PKGS[@]} -gt 0 ]]; then
-    PACKAGES+=("${PREBUILT_PKGS[@]}")
-=======
 # Older installs registered a caelestia-bin pacman repo that pointed at the
 # now-deleted caelestia-bin-repo GitHub release. Drop any stale entry so
 # `pacman -Sy` does not fail against the dead Server URL.
 if grep -q '^\[caelestia-bin\]' /etc/pacman.conf 2>/dev/null; then
     log "Removing stale caelestia-bin repo entry from pacman.conf..."
     sudo sed -i '/^\[caelestia-bin\]/,/^$/d' /etc/pacman.conf
->>>>>>> upstream/main
 fi
 
 log "Installing packages (group: $PACKAGE_GROUP)..."

@@ -117,15 +117,6 @@ bool setup_sudo_environment(const string& pw) {
     // Also export SUDO_PASS for some scripts (like 09-system-tweaks.sh) that might rely on it
     setenv("SUDO_PASS", pw.c_str(), 1);
 
-<<<<<<< HEAD
-    // Start background keep-awake for display (sleep inhibitor).
-    // systemd-inhibit only exists on systemd distros; on runit distros (Void)
-    // the KDE screensaver DBus inhibit below is the fallback.
-    if (system("command -v systemd-inhibit >/dev/null 2>&1") == 0) {
-        system("systemd-inhibit --what=idle:sleep --who=\"Caelestia Installer\" --why=\"Installation in progress\" bash -c 'while :; do sleep 600; done' >/dev/null 2>&1 & echo $! > /tmp/caelestia_inhibit.pid");
-    }
-    system("qdbus6 org.freedesktop.ScreenSaver /ScreenSaver org.freedesktop.ScreenSaver.Inhibit \"Caelestia Installer\" \"Installation in progress\" > /tmp/caelestia_kde_inhibit.cookie 2>/dev/null");
-=======
     const char* runtime = getenv("XDG_RUNTIME_DIR");
     const char* home = getenv("HOME");
     string state_dir = string(runtime ? runtime : (getenv("XDG_STATE_HOME")
@@ -188,6 +179,7 @@ string distro_label(const string& id) {
     if (id == "arch") return "Arch-based Linux";
     if (id == "fedora") return "Fedora";
     if (id == "debian") return "Debian-based Linux";
+    if (id == "void") return "Void Linux";
     return id.empty() ? "unknown" : id;
 }
 
@@ -236,7 +228,6 @@ bool is_caelestia_installed() {
         }
     }
     return false;
->>>>>>> upstream/main
 }
 
 } // anonymous namespace
@@ -579,66 +570,6 @@ namespace UI {
                 }
             }
         }
-<<<<<<< HEAD
-    }
-
-    string distro_select() {
-        vector<string> options = {"Arch-based", "Fedora", "Debian-based", "Void Linux", "Exit"};
-        int selected = 0;
-        int box_width = 63;
-        int box_height = 13;
-
-        bool animated_once = false;
-
-        while (true) {
-            if (g_resized) { Term::get_size(); g_resized = false; animated_once = false; }
-            cout << Draw::sync_start() << Draw::clear();
-            
-            int left = (g_term_width - box_width) / 2;
-            if (left < 1) left = 1;
-            int top = (g_term_height - box_height) / 2;
-            if (top < 1) top = 1;
-
-            if (!animated_once) {
-                Draw::animated_box(left, top, box_width, box_height, "SELECT DISTRIBUTION");
-                animated_once = true;
-            } else {
-                Draw::box(left, top, box_width, box_height, "SELECT DISTRIBUTION");
-            }
-            Draw::text(left + 2, top + 2, "Use UP/DOWN to navigate, ENTER to select.");
-
-            for (size_t i = 0; i < options.size(); i++) {
-                int opt_y = top + 4 + i;
-                if (i == selected) {
-                    Draw::text(left + 2, opt_y, " > " + options[i], Draw::color("green"));
-                } else {
-                    Draw::text(left + 2, opt_y, "   " + options[i]);
-                }
-            }
-            cout << Draw::sync_end() << flush;
-
-            string key = Input::wait_key();
-            if (key == "KEY_up") { if (selected > 0) selected--; }
-            else if (key == "KEY_down") { if (selected < options.size() - 1) selected++; }
-            else if (key == "enter") {
-                if (options[selected] == "Arch-based") return "arch";
-                if (options[selected] == "Fedora") return "fedora";
-                if (options[selected] == "Debian-based") return "debian";
-                if (options[selected] == "Void Linux") return "void";
-                return "exit";
-            }
-        }
-    }
-
-
-    bool check_failed(const string& file, const string& target) {
-        ifstream f(file);
-        string line;
-        while (getline(f, line)) {
-            if (line.find(target) != string::npos) return true;
-        }
-=======
->>>>>>> upstream/main
         return false;
     }
 
@@ -928,13 +859,12 @@ namespace UI {
                 Draw::text(left + 2, y++, Draw::fit(Draw::glyph("ok") + " " + buf, content_width), "success");
             }
 
-<<<<<<< HEAD
             auto print_step = [&](const string& name, const string& desc) {
                 if (y >= top + h - 2) return;
                 bool failed = check_failed(steps_file, name);
                 string mark = failed ? "[X]" : "[OK]";
                 string color = failed ? Draw::color("red") : Draw::color("green");
-                Draw::text(left + 2, y++, color + fit_line(mark + " " + desc, content_width) + Draw::reset);
+                Draw::text(left + 2, y++, color + Draw::fit(mark + " " + desc, content_width) + Draw::reset);
             };
 
             auto print_patch = [&](const string& name, const string& desc) {
@@ -942,50 +872,41 @@ namespace UI {
                 bool failed = check_failed(patches_file, name);
                 string mark = failed ? "[X]" : "[OK]";
                 string color = failed ? Draw::color("red") : Draw::color("green");
-                Draw::text(left + 2, y++, color + fit_line(mark + " " + desc, content_width) + Draw::reset);
+                Draw::text(left + 2, y++, color + Draw::fit(mark + " " + desc, content_width) + Draw::reset);
             };
 
             const char* skip_update = getenv("SKIP_SYSTEM_UPDATE");
             if (skip_update && std::string(skip_update) == "true") {
-                Draw::text(left + 2, y++, fit_line("[SKIP] System update skipped by user choice", content_width), Draw::color("yellow"));
+                Draw::text(left + 2, y++, Draw::fit("[SKIP] System update skipped by user choice", content_width), Draw::color("yellow"));
             } else if (g_base_distro == "arch") {
-                Draw::text(left + 2, y++, fit_line("[OK] System updated (pacman -Syu)", content_width), Draw::color("green"));
+                Draw::text(left + 2, y++, Draw::fit("[OK] System updated (pacman -Syu)", content_width), Draw::color("green"));
             } else if (g_base_distro == "fedora") {
-                Draw::text(left + 2, y++, fit_line("[OK] System updated (dnf upgrade)", content_width), Draw::color("green"));
+                Draw::text(left + 2, y++, Draw::fit("[OK] System updated (dnf upgrade)", content_width), Draw::color("green"));
             } else if (g_base_distro == "debian") {
-                Draw::text(left + 2, y++, fit_line("[OK] System updated (apt-get upgrade)", content_width), Draw::color("green"));
+                Draw::text(left + 2, y++, Draw::fit("[OK] System updated (apt-get upgrade)", content_width), Draw::color("green"));
             } else if (g_base_distro == "void") {
-                Draw::text(left + 2, y++, fit_line("[OK] System updated (xbps-install -S && -u)", content_width), Draw::color("green"));
+                Draw::text(left + 2, y++, Draw::fit("[OK] System updated (xbps-install -Su)", content_width), Draw::color("green"));
             } else {
-                Draw::text(left + 2, y++, fit_line("[OK] System updated", content_width), Draw::color("green"));
+                Draw::text(left + 2, y++, Draw::fit("[OK] System updated", content_width), Draw::color("green"));
             }
 
-            print_step("Package installation", fit_line("Packages installed (PKGBUILDs + fonts + deps)", content_width));
-            print_step("Config deployment", fit_line("Configs (repo-base + KDE overrides, clean deploy)", content_width));
-            print_step("KDE settings", fit_line("Darkly theme + Kvantum + default wallpaper", content_width));
-            print_step("System tweaks", fit_line("5 virtual desktops + KDE OSDs disabled", content_width));
-            print_step("Keyboard shortcuts", fit_line("Keyboard shortcuts (KDE native + keyd)", content_width));
-            print_step("Autostart", fit_line("Quickshell + kde-material-you-colors autostart", content_width));
-            print_step("Build Caelestia Shell", fit_line("Caelestia shell built and installed", content_width));
+            print_step("Package installation", "Packages installed (PKGBUILDs + fonts + deps)");
+            print_step("Config deployment", "Configs (repo-base + KDE overrides, clean deploy)");
+            print_step("KDE settings", "Darkly theme + Kvantum + default wallpaper");
+            print_step("System tweaks", "5 virtual desktops + KDE OSDs disabled");
+            print_step("Keyboard shortcuts", "Keyboard shortcuts (KDE native + keyd)");
+            print_step("Autostart", "Quickshell + kde-material-you-colors autostart");
+            print_step("Build Caelestia Shell", "Caelestia shell built and installed");
 
             y++;
             if (y < top + h - 2) {
                 Draw::text(left + 2, y++, "PATCH STATUS", Draw::bold + Draw::color("cyan"));
-                print_patch("Caelestia CLI Hyprctl Mock Patch", fit_line("Caelestia CLI Hyprctl mock patch", content_width));
-                print_patch("Caelestia CLI Record/Dolphin Patch", fit_line("Caelestia CLI record/dolphin patch", content_width));
-                print_patch("Caelestia CLI Theme Sequence Patch", fit_line("Caelestia CLI theme sequence patch", content_width));
+                print_patch("Caelestia CLI Hyprctl Mock Patch", "Caelestia CLI Hyprctl mock patch");
+                print_patch("Caelestia CLI Record/Dolphin Patch", "Caelestia CLI record/dolphin patch");
+                print_patch("Caelestia CLI Theme Sequence Patch", "Caelestia CLI theme sequence patch");
             }
 
-            ifstream pf(pkgs_file);
-            string pkg;
-            vector<string> failed_pkgs;
-            while (getline(pf, pkg)) {
-                if (!pkg.empty()) failed_pkgs.push_back(pkg);
-            }
-            if (!failed_pkgs.empty() && y < top + h - 4) {
-=======
             if (has_errors) {
->>>>>>> upstream/main
                 y++;
                 if (y < top + h - 4) {
                     Draw::text(left + 2, y++, "ATTENTION NEEDED", Draw::bold + Draw::color("error"));

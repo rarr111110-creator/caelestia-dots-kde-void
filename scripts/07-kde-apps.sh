@@ -49,22 +49,18 @@ install_if_missing() {
             warn "Could not install $pkg, skipping."
             return 1
         }
-<<<<<<< HEAD
-        echo "  [OK]  $pkg installed."
+        ok "$pkg installed."
     elif [[ "$BASE_DISTRO" == "void" ]]; then
         if xbps-query -p pkgver "$pkg" >/dev/null 2>&1; then
-            echo "  [SKIP] $pkg already installed."
+            skip "$pkg already installed."
             return 0
         fi
-        echo "  Installing $pkg..."
+        info "Installing $pkg..."
         sudo xbps-install -y "$pkg" 2>/dev/null || {
-            echo -e "  \033[0;31m[FAIL] Could not install $pkg  skipping.\033[0m"
+            warn "Could not install $pkg, skipping."
             return 1
         }
-        echo "  [OK]  $pkg installed."
-=======
         ok "$pkg installed."
->>>>>>> upstream/main
     fi
 }
 
@@ -133,8 +129,7 @@ if [[ "${APPLY_MATERIAL_YOU:-true}" == "true" ]]; then
         fi
     fi
 else
-<<<<<<< HEAD
-    echo "  [SKIP] Skipping kde-material-you-colors installation. Uninstalling if present..."
+    info "Skipping kde-material-you-colors installation; uninstalling if present..."
 
     # Stop/disable the service if it exists (systemd distros only)
     if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
@@ -144,14 +139,6 @@ else
     # Non-systemd autostart entry (Void/runit and similar)
     rm -f "$HOME/.config/autostart/kde-material-you-colors.desktop" 2>/dev/null || true
 
-=======
-    info "Skipping kde-material-you-colors installation; uninstalling if present..."
-    
-    # Stop the service if running
-    systemctl --user stop kde-material-you-colors.service 2>/dev/null || true
-    systemctl --user disable kde-material-you-colors.service 2>/dev/null || true
-    
->>>>>>> upstream/main
     # Uninstall the package
     if [[ "$BASE_DISTRO" == "arch" ]]; then
         sudo pacman -Rs --noconfirm kde-material-you-colors 2>/dev/null || true

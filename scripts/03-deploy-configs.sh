@@ -202,11 +202,7 @@ if [[ -f "$DOTS_DIR/starship.toml" ]]; then
 fi
 
 #  Deploy Bridge Files 
-<<<<<<< HEAD
-echo "  Deploying bridge files (bin, applications, services, kwin script)..."
-=======
-info "Deploying bridge files (bin, applications, systemd, kwin script)..."
->>>>>>> upstream/main
+info "Deploying bridge files (bin, applications, services, kwin script)..."
 mkdir -p \
     "$HOME/.local/bin" \
     "$HOME/.local/share/applications" \

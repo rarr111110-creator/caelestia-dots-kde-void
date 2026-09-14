@@ -14,14 +14,10 @@
 
 [![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793d1?logo=arch-linux&logoColor=white&style=flat-square)](https://archlinux.org)
 [![Fedora](https://img.shields.io/badge/Fedora-51A2DA?logo=fedora&logoColor=white&style=flat-square)](https://fedoraproject.org)
-<<<<<<< HEAD
 [![Debian](https://img.shields.io/badge/Debian-A81D33?logo=debian&logoColor=white&style=flat-square)](https://debian.org)
 [![Void Linux](https://img.shields.io/badge/Void_Linux-478061?logo=void-linux&logoColor=white&style=flat-square)](https://voidlinux.org)
-=======
-[![Ubuntu](https://img.shields.io/badge/Ubuntu_Rolling-E95420?logo=ubuntu&logoColor=white&style=flat-square)](https://ubuntu.com)
->>>>>>> upstream/main
 [![KDE Plasma](https://img.shields.io/badge/Plasma_6-1D99F3?logo=kde&logoColor=white&style=flat-square)](https://kde.org/plasma-desktop)
-[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-86dbce?style=flat-square)](LICENSE)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-86dbce?style=flat-square)](../LICENSE)
 [![Crowdin](https://badges.crowdin.net/caelestia-kde/localized.svg)](https://crowdin.com/project/caelestia-kde)
 
 </div>
@@ -34,11 +30,7 @@ A community port of the [Caelestia Hyprland dotfiles](https://github.com/caelest
 
 ## Installation
 
-<<<<<<< HEAD
 **Requirements:** Arch-based distro, Fedora, Debian/Ubuntu or **Void Linux** (glibc or musl) · KDE Plasma 6.0+
-=======
-**Requirements:** Arch-based distro, Fedora, or Ubuntu (Rolling) · KDE Plasma 6.0+
->>>>>>> upstream/main
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rarr111110-creator/caelestia-dots-kde-void/main/install.sh | sh

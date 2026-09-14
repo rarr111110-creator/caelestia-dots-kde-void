@@ -212,34 +212,15 @@ if [[ "${CAELESTIA_SETUP_RUNNING:-0}" == "0" ]]; then
             caelestia_sudo dnf install -y "${MISSING[@]}" || warn "dnf install failed..."
         fi
     elif command -v apt-get >/dev/null; then
-<<<<<<< HEAD
-        info "Installing via apt..."
-        sudo apt-get update && sudo apt-get install -y qt6-wayland qt6-wayland-dev libkf6globalaccel-dev libkf6windowsystem-dev qt6-base-private-dev libkf6kpipewire-dev || warn "apt install failed..."
-    elif command -v xbps-install >/dev/null; then
-        info "Installing via xbps..."
-        # Void package names: kf6-* for KF6 frameworks, kglobalacceld for the daemon
-        sudo xbps-install -y qt6-wayland qt6-wayland-devel qt6-base-private-devel kpipewire kpipewire-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel kglobalacceld || warn "xbps install failed..."
-    fi
-    
-    if [[ "${CAELESTIA_SKIP_DEPLOY:-0}" == "0" ]]; then
-        info "Configuring KDE Lock Screen to use Caelestia..."
-        WALLPAPER_STAMP="${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde/wallpaper-plugin-installed"
-        PLUGIN_OK=false
-        if [[ "${CAELESTIA_WALLPAPER_PLUGIN_INSTALLED:-false}" == "true" ]]; then
-            PLUGIN_OK=true
-        elif command -v kpackagetool6 >/dev/null 2>&1 \
-            && kpackagetool6 --list -t Plasma/Wallpaper 2>/dev/null \
-            | grep -q "net.dosowisko.PlasmaApplicationWallpaper"; then
-            PLUGIN_OK=true
-        elif ! command -v kpackagetool6 >/dev/null 2>&1 && [[ -f "$WALLPAPER_STAMP" ]]; then
-            PLUGIN_OK=true
-=======
         mapfile -t MISSING < <(missing_packages qt6-wayland qt6-wayland-dev libkf6globalaccel-dev libkf6windowsystem-dev qt6-base-private-dev libkf6kpipewire-dev ksshaskpass)
         if [[ ${#MISSING[@]} -gt 0 ]]; then
             info "Installing via apt: ${MISSING[*]}"
             caelestia_sudo apt-get update && caelestia_sudo apt-get install -y "${MISSING[@]}" || warn "apt install failed..."
->>>>>>> upstream/main
         fi
+    elif command -v xbps-install >/dev/null; then
+        info "Installing via xbps..."
+        # Void package names: kf6-* for KF6 frameworks, kglobalacceld for the daemon
+        caelestia_sudo xbps-install -y qt6-wayland qt6-wayland-devel qt6-base-private-devel kpipewire kpipewire-devel kf6-kglobalaccel-devel kf6-kwindowsystem-devel kglobalacceld || warn "xbps install failed..."
     fi
 
     info "Deleting yet-another-monochrome-icon-set for lag free update..."

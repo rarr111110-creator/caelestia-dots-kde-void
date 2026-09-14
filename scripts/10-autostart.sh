@@ -171,10 +171,9 @@ RestartSec=3
 WantedBy=graphical-session.target
 EOF
 
-<<<<<<< HEAD
         systemctl --user daemon-reload
         systemctl --user enable --now kde-material-you-colors.service 2>/dev/null || true
-        echo "  [OK]  kde-material-you-colors systemd service enabled."
+        ok "kde-material-you-colors systemd service enabled."
     else
         # runit distros (Void): autostart entry
         rm -f "$HOME/.config/systemd/user/kde-material-you-colors.service" 2>/dev/null || true
@@ -188,17 +187,10 @@ Terminal=false
 Hidden=false
 X-GNOME-Autostart-enabled=true
 EOF
-        echo "  [OK]  kde-material-you-colors autostart entry created (runit)."
+        ok "kde-material-you-colors autostart entry created (runit)."
     fi
 else
-    echo "  [SKIP] Skipping kde-material-you-colors background service."
-=======
-    systemctl --user daemon-reload
-    systemctl --user enable --now kde-material-you-colors.service 2>/dev/null || true
-    ok "kde-material-you-colors systemd service enabled."
-else
-    skip "Skipping kde-material-you-colors systemd service."
->>>>>>> upstream/main
+    skip "Skipping kde-material-you-colors background service."
 fi
 
 # Live window thumbnails.

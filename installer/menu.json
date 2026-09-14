@@ -182,9 +182,6 @@
         {
           "id": "INSTALL_ZED",
           "type": "boolean",
-<<<<<<< HEAD
-          "title": "Skip the full system update (pacman -Syu / dnf upgrade / apt upgrade / xbps-install -u)",
-=======
           "title": "Zed",
           "help": "Zed keymap and settings.",
           "default": false
@@ -215,7 +212,6 @@
           "type": "boolean",
           "title": "Firefox theming",
           "help": "userChrome.css and user.js theming for Firefox.",
->>>>>>> upstream/main
           "default": false
         },
         {
@@ -242,7 +238,7 @@
           "id": "SKIP_SYSTEM_UPDATE",
           "type": "boolean",
           "title": "Skip the full system update",
-          "help": "Skip the full system update (pacman -Syu / dnf upgrade / apt upgrade).",
+          "help": "Skip the full system update (pacman -Syu / dnf upgrade / apt upgrade / xbps-install -Su).",
           "default": false
         },
         {

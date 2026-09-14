@@ -86,18 +86,12 @@ else
 fi
 
 #  Cliphist Service 
-<<<<<<< HEAD
-echo "  Setting up cliphist background service..."
+info "Setting up cliphist background service..."
 
 if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
     # systemd distros (Arch/Fedora/Debian): user service unit
     mkdir -p "$HOME/.config/systemd/user"
     cat > "$HOME/.config/systemd/user/cliphist.service" << 'EOF'
-=======
-info "Setting up cliphist background service..."
-mkdir -p "$HOME/.config/systemd/user"
-cat > "$HOME/.config/systemd/user/cliphist.service" << 'EOF'
->>>>>>> upstream/main
 [Unit]
 Description=Clipboard history service
 After=graphical-session.target
@@ -111,10 +105,9 @@ RestartSec=3
 [Install]
 WantedBy=default.target
 EOF
-<<<<<<< HEAD
     systemctl --user daemon-reload
     systemctl --user enable --now cliphist.service 2>/dev/null || true
-    echo "  [OK]  Cliphist background service enabled (systemd)."
+    ok "Cliphist background service enabled (systemd)."
 else
     # Non-systemd distros (e.g. Void with runit): XDG autostart entry.
     mkdir -p "$HOME/.local/bin" "$HOME/.config/autostart"
@@ -134,13 +127,8 @@ Terminal=false
 Hidden=false
 X-GNOME-Autostart-enabled=true
 EOF
-    echo "  [OK]  Cliphist background service enabled (autostart entry)."
+    ok "Cliphist background service enabled (autostart entry)."
 fi
-=======
-systemctl --user daemon-reload
-systemctl --user enable --now cliphist.service 2>/dev/null || true
-ok "Cliphist background service enabled."
->>>>>>> upstream/main
 
 ok "KDE settings applied."
 

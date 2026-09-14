@@ -172,12 +172,17 @@ Environment=YDOTOOL_SOCKET=/run/user/%U/.ydotool_socket
 [Install]
 WantedBy=graphical-session.target
 UNIT
-<<<<<<< HEAD
         systemctl --user daemon-reload
         systemctl --user enable ydotoold.service 2>/dev/null || true
-        systemctl --user start ydotoold.service 2>/dev/null || \
-            echo "  [INFO] ydotoold will start on next login."
-        echo "  [OK]  ydotoold service configured (systemd)."
+        # The 'input' group only applies to new logins; starting the daemon in the
+        # same session that just got the group would silently fail to open /dev/uinput.
+        if id -nG | grep -q '\binput\b'; then
+            systemctl --user start ydotoold.service 2>/dev/null || \
+                info "ydotoold will start on next login."
+        else
+            info "ydotoold starts on next login (input group takes effect then)."
+        fi
+        ok "ydotoold service configured (systemd)."
     else
         # runit (Void) and other non-systemd distros: XDG autostart entry.
         mkdir -p "$HOME/.config/autostart"
@@ -191,23 +196,10 @@ Terminal=false
 Hidden=false
 X-GNOME-Autostart-enabled=true
 EOF
-        echo "  [OK]  ydotoold daemon configured (autostart entry)."
+        ok "ydotoold daemon configured (autostart entry)."
         # Start it now for the current session, if possible.
         nohup "$HOME/.local/bin/ydotoold-wrapper" >/dev/null 2>&1 & disown || true
     fi
 fi
-=======
-systemctl --user daemon-reload
-systemctl --user enable ydotoold.service 2>/dev/null || true
-# The 'input' group only applies to new logins; starting the daemon in the
-# same session that just got the group would silently fail to open /dev/uinput.
-if id -nG | grep -q '\binput\b'; then
-    systemctl --user start ydotoold.service 2>/dev/null || \
-        info "ydotoold will start on next login."
-else
-    info "ydotoold starts on next login (input group takes effect then)."
-fi
-ok "ydotoold service configured."
->>>>>>> upstream/main
 
 ok "Services configured."

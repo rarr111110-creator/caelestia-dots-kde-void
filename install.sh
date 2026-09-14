@@ -65,35 +65,29 @@ REPO="${CAELESTIA_REPO:-https://github.com/rarr111110-creator/caelestia-dots-kde
 BRANCH="${CAELESTIA_BRANCH:-main}"
 DEST="${CAELESTIA_DIR:-$HOME/caelestia-dots-kde}"
 
-<<<<<<< HEAD
 # Git (and curl for `curl | sh` installs) are hard requirements. On supported
 # distros offer to install them automatically instead of dying with a bare
 # error — this covers minimal Void/Arch/Fedora/Debian installs.
+# Marker spacing must match scripts/lib/log.sh, which install.sh cannot
+# source because it has to stay POSIX sh for `curl | sh` bootstrapping.
 if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
-    echo "[Caelestia] git/curl are required but not installed."
+    echo "  [INFO]  git/curl are required but not installed."
     if command -v xbps-install >/dev/null 2>&1; then
-        echo "[Caelestia] Installing git and curl with xbps..."
+        echo "  [INFO]  Installing git and curl with xbps..."
         sudo xbps-install -S && sudo xbps-install -y git curl || exit 1
     elif command -v pacman >/dev/null 2>&1; then
-        echo "[Caelestia] Installing git and curl with pacman..."
+        echo "  [INFO]  Installing git and curl with pacman..."
         sudo pacman -S --needed --noconfirm git curl || exit 1
     elif command -v dnf >/dev/null 2>&1; then
-        echo "[Caelestia] Installing git and curl with dnf..."
+        echo "  [INFO]  Installing git and curl with dnf..."
         sudo dnf install -y git curl || exit 1
     elif command -v apt-get >/dev/null 2>&1; then
-        echo "[Caelestia] Installing git and curl with apt..."
+        echo "  [INFO]  Installing git and curl with apt..."
         sudo apt-get update && sudo apt-get install -y git curl || exit 1
     else
-        echo "[Caelestia] Could not auto-install git/curl. Install them manually and re-run." >&2
+        echo "  [ERR]   Could not auto-install git/curl. Install them manually and re-run." >&2
         exit 1
     fi
-=======
-if ! command -v git >/dev/null 2>&1; then
-    # Marker spacing must match scripts/lib/log.sh, which install.sh cannot
-    # source because it has to stay POSIX sh for `curl | sh` bootstrapping.
-    echo "  [ERR]   git is required but not installed." >&2
-    exit 1
->>>>>>> upstream/main
 fi
 
 # If run from an existing checkout (e.g. `sh install.sh` inside the repo),
